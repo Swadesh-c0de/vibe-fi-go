@@ -3,9 +3,12 @@ package views
 import (
 	"fmt"
 	"strings"
+
+	"github.com/charmbracelet/lipgloss"
 	"vibe-fi/internal/config"
 	"vibe-fi/internal/tui/components"
 	"vibe-fi/internal/tui/theme"
+	"vibe-fi/internal/utils/stringutil"
 )
 
 var asciiLogo = []string{
@@ -33,33 +36,30 @@ func RenderIntroView(width, height int, styles theme.Styles) string {
 	}
 
 	for i, logoLine := range asciiLogo {
-		pad := (innerW - len(logoLine)) / 2
-		if pad < 0 {
-			pad = 0
-		}
+		lWidth := lipgloss.Width(logoLine)
+		pad := (innerW - lWidth) / 2
+		rPad := innerW - pad - lWidth
 		if startY+i < innerH {
-			lines[startY+i] = strings.Repeat(" ", pad) + styles.StatusTitle.Render(logoLine)
+			lines[startY+i] = stringutil.SafeRepeat(" ", pad) + styles.StatusTitle.Render(logoLine) + stringutil.SafeRepeat(" ", rPad)
 		}
 	}
 
 	welcome := fmt.Sprintf("Vibe-Fi Terminal Music Player (v%s)", config.Version)
-	welcomePad := (innerW - len(welcome)) / 2
-	if welcomePad < 0 {
-		welcomePad = 0
-	}
+	wWidth := lipgloss.Width(welcome)
+	welcomePad := (innerW - wWidth) / 2
+	rWelcomePad := innerW - welcomePad - wWidth
 	welcomeY := startY + len(asciiLogo) + 2
 	if welcomeY < innerH {
-		lines[welcomeY] = strings.Repeat(" ", welcomePad) + styles.StatusTitle.Render(welcome)
+		lines[welcomeY] = stringutil.SafeRepeat(" ", welcomePad) + styles.StatusTitle.Render(welcome) + stringutil.SafeRepeat(" ", rWelcomePad)
 	}
 
 	instruction := "[L] Library   [S] Search   [P] Playlists   [R] Resume   [ESC] Quit"
-	instPad := (innerW - len(instruction)) / 2
-	if instPad < 0 {
-		instPad = 0
-	}
+	iWidth := lipgloss.Width(instruction)
+	instPad := (innerW - iWidth) / 2
+	rInstPad := innerW - instPad - iWidth
 	instY := welcomeY + 2
 	if instY < innerH {
-		lines[instY] = strings.Repeat(" ", instPad) + styles.HelpKey.Render(instruction)
+		lines[instY] = stringutil.SafeRepeat(" ", instPad) + styles.HelpKey.Render(instruction) + stringutil.SafeRepeat(" ", rInstPad)
 	}
 
 	return components.RenderBoxWithTitle("", lines, width, height, styles)

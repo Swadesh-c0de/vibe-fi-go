@@ -2,11 +2,15 @@ package views
 
 import (
 	"strings"
+
+	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"vibe-fi/internal/player"
 	"vibe-fi/internal/service/lyrics"
 	"vibe-fi/internal/tui/components"
 	"vibe-fi/internal/tui/theme"
 	"vibe-fi/internal/tui/visualizer"
+	"vibe-fi/internal/utils/stringutil"
 )
 
 // RenderPlaybackView renders the dual Visualizer (40%) and Lyrics (60%) layout.
@@ -77,27 +81,20 @@ func renderLyricsBody(textW, textH int, p player.AudioPlayer, data lyrics.Lyrics
 				lineText = "> " + lineText
 			}
 
-			displayLen := len([]rune(lineText))
-			if displayLen > textW-2 {
-				lineText = string([]rune(lineText)[:textW-5]) + "..."
-				displayLen = textW - 2
+			if lipgloss.Width(lineText) > textW-2 {
+				lineText = ansi.Truncate(lineText, textW-5, "...")
 			}
+			displayLen := lipgloss.Width(lineText)
 
 			leftPad := (textW - displayLen) / 2
-			if leftPad < 0 {
-				leftPad = 0
-			}
+			padRight := textW - leftPad - displayLen
 
 			styledText := lineText
 			if isActive {
 				styledText = styles.ActiveSong.Render(lineText)
 			}
 
-			padRight := textW - leftPad - displayLen
-			if padRight < 0 {
-				padRight = 0
-			}
-			out[i] = strings.Repeat(" ", leftPad) + styledText + strings.Repeat(" ", padRight)
+			out[i] = stringutil.SafeRepeat(" ", leftPad) + styledText + stringutil.SafeRepeat(" ", padRight)
 		}
 	} else {
 		// Plain lyrics or error
@@ -112,20 +109,19 @@ func renderLyricsBody(textW, textH int, p player.AudioPlayer, data lyrics.Lyrics
 			hint := "(Press 'S' to search YouTube)"
 
 			midY := textH / 2
-			errPad := (textW - len(errMsg)) / 2
-			if errPad < 0 {
-				errPad = 0
-			}
-			hintPad := (textW - len(hint)) / 2
-			if hintPad < 0 {
-				hintPad = 0
-			}
+			errLen := lipgloss.Width(errMsg)
+			errPad := (textW - errLen) / 2
+			rErrPad := textW - errPad - errLen
+
+			hintLen := lipgloss.Width(hint)
+			hintPad := (textW - hintLen) / 2
+			rHintPad := textW - hintPad - hintLen
 
 			if midY < textH {
-				out[midY] = strings.Repeat(" ", errPad) + styles.StatusTitle.Render(errMsg)
+				out[midY] = stringutil.SafeRepeat(" ", errPad) + styles.StatusTitle.Render(errMsg) + stringutil.SafeRepeat(" ", rErrPad)
 			}
 			if midY+2 < textH {
-				out[midY+2] = strings.Repeat(" ", hintPad) + styles.StatusDim.Render(hint)
+				out[midY+2] = stringutil.SafeRepeat(" ", hintPad) + styles.StatusDim.Render(hint) + stringutil.SafeRepeat(" ", rHintPad)
 			}
 		} else {
 			lines := strings.Split(data.PlainLyrics, "\n")
@@ -135,16 +131,13 @@ func renderLyricsBody(textW, textH int, p player.AudioPlayer, data lyrics.Lyrics
 					break
 				}
 				line := strings.TrimRight(lines[idx], "\r")
-				dispLen := len([]rune(line))
-				if dispLen > textW-2 {
-					line = string([]rune(line)[:textW-5]) + "..."
-					dispLen = textW - 2
+				if lipgloss.Width(line) > textW-2 {
+					line = ansi.Truncate(line, textW-5, "...")
 				}
+				dispLen := lipgloss.Width(line)
 				pad := (textW - dispLen) / 2
-				if pad < 0 {
-					pad = 0
-				}
-				out[i] = strings.Repeat(" ", pad) + line
+				rPad := textW - pad - dispLen
+				out[i] = stringutil.SafeRepeat(" ", pad) + line + stringutil.SafeRepeat(" ", rPad)
 			}
 		}
 	}

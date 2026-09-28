@@ -3,6 +3,9 @@ package components
 import (
 	"fmt"
 	"strings"
+
+	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"vibe-fi/internal/player"
 	"vibe-fi/internal/tui/theme"
 	"vibe-fi/internal/utils/stringutil"
@@ -26,7 +29,7 @@ func RenderStatusBar(width int, p player.AudioPlayer, styles theme.Styles) strin
 		innerW = 10
 	}
 
-	// Line 1: Title
+	// Line 1: Centered Title
 	title := p.GetMetadata("media-title")
 	if title == "" {
 		title = p.GetMetadata("filename")
@@ -45,14 +48,13 @@ func RenderStatusBar(width int, p player.AudioPlayer, styles theme.Styles) strin
 		}
 	}
 
-	if len(title) > innerW-2 {
-		title = title[:innerW-5] + "..."
+	if lipgloss.Width(title) > innerW-2 {
+		title = ansi.Truncate(title, innerW-5, "...")
 	}
-	titleLeft := (innerW - len(title)) / 2
-	if titleLeft < 0 {
-		titleLeft = 0
-	}
-	line1 := strings.Repeat(" ", titleLeft) + styles.StatusTitle.Render(title) + strings.Repeat(" ", innerW-titleLeft-len(title))
+	tWidth := lipgloss.Width(title)
+	titleLeft := (innerW - tWidth) / 2
+	titleRight := innerW - titleLeft - tWidth
+	line1 := stringutil.SafeRepeat(" ", titleLeft) + styles.StatusTitle.Render(title) + stringutil.SafeRepeat(" ", titleRight)
 
 	// Line 2: Progress Bar
 	pos := p.Position()
@@ -70,33 +72,35 @@ func RenderStatusBar(width int, p player.AudioPlayer, styles theme.Styles) strin
 		}
 		empty := (barWidth - 2) - filled
 
-		barContent := "[" + styles.ProgressBar.Render(strings.Repeat("=", filled)) + strings.Repeat(" ", empty) + "]"
+		barContent := "[" + styles.ProgressBar.Render(strings.Repeat("=", filled)) + stringutil.SafeRepeat(" ", empty) + "]"
 		barPad := (innerW - barWidth) / 2
-		if barPad < 0 {
-			barPad = 0
-		}
-		line2 = strings.Repeat(" ", barPad) + barContent + strings.Repeat(" ", innerW-barPad-len([]rune(barContent)))
+		rightPad := innerW - barPad - barWidth
+		line2 = stringutil.SafeRepeat(" ", barPad) + barContent + stringutil.SafeRepeat(" ", rightPad)
 	} else if p.IsLoading() {
 		hint := "Connecting to audio stream..."
-		hPad := (innerW - len(hint)) / 2
-		line2 = strings.Repeat(" ", hPad) + styles.ProgressBar.Render(hint) + strings.Repeat(" ", innerW-hPad-len(hint))
+		hWidth := lipgloss.Width(hint)
+		hPad := (innerW - hWidth) / 2
+		rPad := innerW - hPad - hWidth
+		line2 = stringutil.SafeRepeat(" ", hPad) + styles.ProgressBar.Render(hint) + stringutil.SafeRepeat(" ", rPad)
 	} else if p.IsBuffering() {
 		hint := "Buffering audio cache..."
-		hPad := (innerW - len(hint)) / 2
-		line2 = strings.Repeat(" ", hPad) + styles.ProgressBar.Render(hint) + strings.Repeat(" ", innerW-hPad-len(hint))
+		hWidth := lipgloss.Width(hint)
+		hPad := (innerW - hWidth) / 2
+		rPad := innerW - hPad - hWidth
+		line2 = stringutil.SafeRepeat(" ", hPad) + styles.ProgressBar.Render(hint) + stringutil.SafeRepeat(" ", rPad)
 	} else {
-		line2 = strings.Repeat(" ", innerW)
+		line2 = stringutil.SafeRepeat(" ", innerW)
 	}
 
 	// Line 3: Duration on left, Volume on right
 	timeStr := stringutil.FormatDuration(pos) + " / " + stringutil.FormatDuration(dur)
 	volStr := fmt.Sprintf("Vol: %d%%", p.Volume())
 
-	spaceCount := innerW - 2 - len(timeStr) - len(volStr)
+	spaceCount := innerW - 2 - lipgloss.Width(timeStr) - lipgloss.Width(volStr)
 	if spaceCount < 1 {
 		spaceCount = 1
 	}
-	line3 := " " + timeStr + strings.Repeat(" ", spaceCount) + volStr + " "
+	line3 := " " + timeStr + stringutil.SafeRepeat(" ", spaceCount) + volStr + " "
 
 	innerLines := []string{line1, line2, line3}
 	return RenderBoxWithTitle(statusTag, innerLines, width, 5, styles)

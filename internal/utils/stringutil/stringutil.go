@@ -7,6 +7,9 @@ import (
 	"strconv"
 	"strings"
 	"unicode"
+
+	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 )
 
 // FormatDuration formats seconds into "MM:SS" or "HH:MM:SS".
@@ -95,4 +98,45 @@ func FuzzyMatch(pattern, text string) bool {
 // IsURL checks whether the input string is an HTTP/HTTPS URL.
 func IsURL(input string) bool {
 	return strings.HasPrefix(input, "http://") || strings.HasPrefix(input, "https://")
+}
+
+// SafeRepeat repeats s count times, returning empty string if count <= 0.
+func SafeRepeat(s string, count int) string {
+	if count <= 0 {
+		return ""
+	}
+	return strings.Repeat(s, count)
+}
+
+// Width returns terminal display column width of string s, ignoring ANSI sequences.
+func Width(s string) int {
+	return lipgloss.Width(s)
+}
+
+// PadRight pads s with spaces so its terminal display width is at least targetW.
+func PadRight(s string, targetW int) string {
+	w := lipgloss.Width(s)
+	if w >= targetW {
+		return s
+	}
+	return s + strings.Repeat(" ", targetW-w)
+}
+
+// PadCenter centers s within targetW.
+func PadCenter(s string, targetW int) string {
+	w := lipgloss.Width(s)
+	if w >= targetW {
+		return s
+	}
+	left := (targetW - w) / 2
+	right := targetW - w - left
+	return strings.Repeat(" ", left) + s + strings.Repeat(" ", right)
+}
+
+// Truncate truncates s to at most maxW visual columns using ansi.Truncate.
+func Truncate(s string, maxW int, tail string) string {
+	if maxW <= 0 {
+		return ""
+	}
+	return ansi.Truncate(s, maxW, tail)
 }

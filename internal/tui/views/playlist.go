@@ -3,9 +3,13 @@ package views
 import (
 	"fmt"
 	"strings"
+
+	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"vibe-fi/internal/service/playlist"
 	"vibe-fi/internal/tui/components"
 	"vibe-fi/internal/tui/theme"
+	"vibe-fi/internal/utils/stringutil"
 )
 
 // RenderPlaylistsBrowser renders the split view (playlists list on left, preview on right).
@@ -20,11 +24,8 @@ func RenderPlaylistsBrowser(width, height int, playlists []playlist.Playlist, pr
 
 	if len(playlists) == 0 {
 		msg := "No playlists found. Press [N] to create one."
-		pad := (innerW - len(msg)) / 2
-		if pad < 0 {
-			pad = 0
-		}
-		lines[innerH/2] = strings.Repeat(" ", pad) + styles.StatusDim.Render(msg)
+		pad := (innerW - lipgloss.Width(msg)) / 2
+		lines[innerH/2] = stringutil.SafeRepeat(" ", pad) + styles.StatusDim.Render(msg)
 		return components.RenderBoxWithTitle("PLAYLISTS", lines, width, height, styles)
 	}
 
@@ -39,17 +40,23 @@ func RenderPlaylistsBrowser(width, height int, playlists []playlist.Playlist, pr
 
 	// Left header
 	leftHeader := fmt.Sprintf(" %-*s", leftW-1, "Playlist Name")
+	if lipgloss.Width(leftHeader) > leftW {
+		leftHeader = ansi.Truncate(leftHeader, leftW, "")
+	} else if lipgloss.Width(leftHeader) < leftW {
+		leftHeader += stringutil.SafeRepeat(" ", leftW-lipgloss.Width(leftHeader))
+	}
+
 	// Right header
 	rightHeader := " Preview"
 	if selectedIndex >= 0 && selectedIndex < len(playlists) {
 		rightHeader = fmt.Sprintf(" Preview: %s", playlists[selectedIndex].Name)
 	}
-	if len(rightHeader) > rightW-2 {
-		rightHeader = rightHeader[:rightW-5] + "..."
+	if lipgloss.Width(rightHeader) > rightW-2 {
+		rightHeader = ansi.Truncate(rightHeader, rightW-3, "...")
 	}
-	rightHeader += strings.Repeat(" ", rightW-len(rightHeader))
+	rightHeader += stringutil.SafeRepeat(" ", rightW-lipgloss.Width(rightHeader))
 
-	lines[0] = styles.HeaderRow.Render(leftHeader) + styles.BorderBox.Render("│") + styles.StatusTitle.Render(rightHeader)
+	lines[0] = styles.HeaderRow.Render(leftHeader) + styles.BorderLine.Render("│") + styles.StatusTitle.Render(rightHeader)
 
 	visiblePlaylists := innerH - 1
 	for i := 0; i < visiblePlaylists; i++ {
@@ -58,23 +65,25 @@ func RenderPlaylistsBrowser(width, height int, playlists []playlist.Playlist, pr
 		if pIdx < len(playlists) {
 			p := playlists[pIdx]
 			countStr := fmt.Sprintf(" (%d)", p.SongCount)
-			maxNameLen := leftW - 2 - len(countStr)
+			maxNameLen := leftW - 2 - lipgloss.Width(countStr)
+			if maxNameLen < 1 {
+				maxNameLen = 1
+			}
 			name := p.Name
-			if len(name) > maxNameLen && maxNameLen > 3 {
-				name = name[:maxNameLen-3] + "..."
+			if lipgloss.Width(name) > maxNameLen {
+				name = ansi.Truncate(name, maxNameLen, "...")
 			}
 			rowText := fmt.Sprintf(" %s%s", name, countStr)
-			pad := leftW - len([]rune(rowText))
-			if pad > 0 {
-				rowText += strings.Repeat(" ", pad)
-			}
+			pad := leftW - lipgloss.Width(rowText)
+			rowText += stringutil.SafeRepeat(" ", pad)
+
 			if pIdx == selectedIndex {
 				leftCol = styles.SelectedRow.Render(rowText)
 			} else {
 				leftCol = rowText
 			}
 		} else {
-			leftCol = strings.Repeat(" ", leftW)
+			leftCol = stringutil.SafeRepeat(" ", leftW)
 		}
 
 		// Right column (preview songs)
@@ -84,11 +93,10 @@ func RenderPlaylistsBrowser(width, height int, playlists []playlist.Playlist, pr
 			if maxTitleLen < 10 {
 				maxTitleLen = 10
 			}
-			rightCol = styles.HeaderRow.Render(fmt.Sprintf(" %-4s %-*s %10s", "#", maxTitleLen, "Title", "Duration"))
-			pad := rightW - len([]rune(rightCol))
-			if pad > 0 {
-				rightCol += strings.Repeat(" ", pad)
-			}
+			headerRow := fmt.Sprintf(" %-4s %-*s %10s", "#", maxTitleLen, "Title", "Duration")
+			pad := rightW - lipgloss.Width(headerRow)
+			headerRow += stringutil.SafeRepeat(" ", pad)
+			rightCol = styles.HeaderRow.Render(headerRow)
 		} else if i > 0 && (i-1) < len(previewSongs) {
 			s := previewSongs[i-1]
 			maxTitleLen := rightW - 20
@@ -96,23 +104,21 @@ func RenderPlaylistsBrowser(width, height int, playlists []playlist.Playlist, pr
 				maxTitleLen = 10
 			}
 			title := s.Title
-			runes := []rune(title)
-			if len(runes) > maxTitleLen {
-				title = string(runes[:maxTitleLen-3]) + "..."
+			if lipgloss.Width(title) > maxTitleLen {
+				title = ansi.Truncate(title, maxTitleLen, "...")
 			}
-			rightCol = fmt.Sprintf(" %-4d %-*s %10s", i, maxTitleLen, title, s.Duration)
-			pad := rightW - len([]rune(rightCol))
-			if pad > 0 {
-				rightCol += strings.Repeat(" ", pad)
-			}
+			row := fmt.Sprintf(" %-4d %-*s %10s", i, maxTitleLen, title, s.Duration)
+			pad := rightW - lipgloss.Width(row)
+			row += stringutil.SafeRepeat(" ", pad)
+			rightCol = row
 		} else if len(previewSongs) == 0 && i == 1 {
 			msg := " Playlist is empty."
-			rightCol = styles.StatusDim.Render(msg) + strings.Repeat(" ", rightW-len(msg))
+			rightCol = styles.StatusDim.Render(msg) + stringutil.SafeRepeat(" ", rightW-lipgloss.Width(msg))
 		} else {
-			rightCol = strings.Repeat(" ", rightW)
+			rightCol = stringutil.SafeRepeat(" ", rightW)
 		}
 
-		lines[i+1] = leftCol + styles.BorderBox.Render("│") + rightCol
+		lines[i+1] = leftCol + styles.BorderLine.Render("│") + rightCol
 	}
 
 	return components.RenderBoxWithTitle("PLAYLISTS", lines, width, height, styles)
@@ -130,11 +136,8 @@ func RenderPlaylistSongsView(width, height int, playlistName string, songs []pla
 
 	if len(songs) == 0 {
 		msg := "Playlist is empty."
-		pad := (innerW - len(msg)) / 2
-		if pad < 0 {
-			pad = 0
-		}
-		lines[innerH/2] = strings.Repeat(" ", pad) + styles.StatusDim.Render(msg)
+		pad := (innerW - lipgloss.Width(msg)) / 2
+		lines[innerH/2] = stringutil.SafeRepeat(" ", pad) + styles.StatusDim.Render(msg)
 		return components.RenderBoxWithTitle("PLAYLIST: "+playlistName, lines, width, height, styles)
 	}
 
@@ -144,9 +147,8 @@ func RenderPlaylistSongsView(width, height int, playlistName string, songs []pla
 	}
 
 	header := fmt.Sprintf(" %-4s %-*s %10s", "#", maxTitleLen, "Title", "Duration")
-	if len(header) < innerW {
-		header += strings.Repeat(" ", innerW-len(header))
-	}
+	pad := innerW - lipgloss.Width(header)
+	header += stringutil.SafeRepeat(" ", pad)
 	lines[0] = styles.HeaderRow.Render(header)
 
 	visibleRows := innerH - 1
@@ -157,16 +159,13 @@ func RenderPlaylistSongsView(width, height int, playlistName string, songs []pla
 		}
 		s := songs[idx]
 		title := s.Title
-		runes := []rune(title)
-		if len(runes) > maxTitleLen {
-			title = string(runes[:maxTitleLen-3]) + "..."
+		if lipgloss.Width(title) > maxTitleLen {
+			title = ansi.Truncate(title, maxTitleLen, "...")
 		}
 
 		row := fmt.Sprintf(" %-4d %-*s %10s", idx+1, maxTitleLen, title, s.Duration)
-		pad := innerW - len([]rune(row))
-		if pad > 0 {
-			row += strings.Repeat(" ", pad)
-		}
+		rPad := innerW - lipgloss.Width(row)
+		row += stringutil.SafeRepeat(" ", rPad)
 
 		if idx == selectedIndex {
 			lines[i+1] = styles.SelectedRow.Render(row)
@@ -195,15 +194,14 @@ func RenderPlaylistSelectDialog(width, height int, isMove bool, playlists []play
 
 	if len(playlists) == 0 {
 		msg := "No playlists found. Press [N] to create one."
-		pad := (innerW - len(msg)) / 2
-		lines[innerH/2] = strings.Repeat(" ", pad) + styles.StatusDim.Render(msg)
+		pad := (innerW - lipgloss.Width(msg)) / 2
+		lines[innerH/2] = stringutil.SafeRepeat(" ", pad) + styles.StatusDim.Render(msg)
 		return components.RenderBoxWithTitle(title, lines, width, height, styles)
 	}
 
 	header := fmt.Sprintf(" %-20s %10s", "Playlist Name", "Songs")
-	if len(header) < innerW {
-		header += strings.Repeat(" ", innerW-len(header))
-	}
+	pad := innerW - lipgloss.Width(header)
+	header += stringutil.SafeRepeat(" ", pad)
 	lines[0] = styles.HeaderRow.Render(header)
 
 	visibleRows := innerH - 1
@@ -214,14 +212,12 @@ func RenderPlaylistSelectDialog(width, height int, isMove bool, playlists []play
 		}
 		p := playlists[idx]
 		name := p.Name
-		if len(name) > 20 {
-			name = name[:17] + "..."
+		if lipgloss.Width(name) > 20 {
+			name = ansi.Truncate(name, 20, "...")
 		}
 		row := fmt.Sprintf(" %-20s %10d", name, p.SongCount)
-		pad := innerW - len([]rune(row))
-		if pad > 0 {
-			row += strings.Repeat(" ", pad)
-		}
+		rPad := innerW - lipgloss.Width(row)
+		row += stringutil.SafeRepeat(" ", rPad)
 
 		if idx == selectedIndex {
 			lines[i+1] = styles.SelectedRow.Render(row)

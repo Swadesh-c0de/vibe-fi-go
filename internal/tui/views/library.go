@@ -3,9 +3,13 @@ package views
 import (
 	"fmt"
 	"strings"
+
+	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"vibe-fi/internal/service/library"
 	"vibe-fi/internal/tui/components"
 	"vibe-fi/internal/tui/theme"
+	"vibe-fi/internal/utils/stringutil"
 )
 
 // RenderLibraryView renders the local music directory browser.
@@ -35,17 +39,13 @@ func RenderLibraryView(width, height int, currentPath string, items []library.Li
 			dispName += " (" + item.Duration + ")"
 		}
 
-		runes := []rune(dispName)
-		if len(runes) > innerW-2 {
-			dispName = string(runes[:innerW-5]) + "..."
+		if lipgloss.Width(dispName) > innerW-2 {
+			dispName = ansi.Truncate(dispName, innerW-5, "...")
 		}
 
 		line := " " + dispName
-		pad := innerW - len([]rune(line))
-		if pad < 0 {
-			pad = 0
-		}
-		fullLine := line + strings.Repeat(" ", pad)
+		pad := innerW - lipgloss.Width(line)
+		fullLine := line + stringutil.SafeRepeat(" ", pad)
 
 		if idx == selectedIndex {
 			lines[i] = styles.SelectedRow.Render(fullLine)

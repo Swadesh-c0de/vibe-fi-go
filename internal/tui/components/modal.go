@@ -3,7 +3,11 @@ package components
 import (
 	"fmt"
 	"strings"
+
+	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"vibe-fi/internal/tui/theme"
+	"vibe-fi/internal/utils/stringutil"
 )
 
 // RenderConfirmQuit renders the centered quit confirmation modal.
@@ -18,11 +22,9 @@ func RenderConfirmQuit(termW, termH int, selectedIdx int, styles theme.Styles) s
 	winH := 7
 
 	prompt := "Wanna quit listening?"
-	pLeft := (winW - 2 - len(prompt)) / 2
-	if pLeft < 0 {
-		pLeft = 0
-	}
-	line1 := strings.Repeat(" ", pLeft) + styles.StatusTitle.Render(prompt)
+	pWidth := lipgloss.Width(prompt)
+	pLeft := (winW - 2 - pWidth) / 2
+	line1 := stringutil.SafeRepeat(" ", pLeft) + styles.StatusTitle.Render(prompt)
 
 	line2 := "" // spacing
 
@@ -39,14 +41,9 @@ func RenderConfirmQuit(termW, termH int, selectedIdx int, styles theme.Styles) s
 	btnSpace := 6
 	btnTotalW := 7 + btnSpace + 8
 	btnLeft := (winW - 2 - btnTotalW) / 2
-	if btnLeft < 0 {
-		btnLeft = 0
-	}
-	line3 := strings.Repeat(" ", btnLeft) + btnYes + strings.Repeat(" ", btnSpace) + btnNo
+	line3 := stringutil.SafeRepeat(" ", btnLeft) + btnYes + stringutil.SafeRepeat(" ", btnSpace) + btnNo
 
 	box := RenderBoxWithTitle("Confirmation", []string{"", line1, line2, line3, ""}, winW, winH, styles)
-
-	// Place in center of terminal
 	return OverlayCenter(box, termW, termH, winW, winH)
 }
 
@@ -63,8 +60,8 @@ func RenderInputPrompt(termW, termH int, promptTitle, text string, styles theme.
 
 	innerW := winW - 2
 	inputLine := fmt.Sprintf("> %s_", text)
-	if len(inputLine) > innerW-2 {
-		inputLine = "> " + text[len(text)-(innerW-5):] + "_"
+	if lipgloss.Width(inputLine) > innerW-2 {
+		inputLine = "> " + ansi.Truncate(text, innerW-5, "") + "_"
 	}
 	line := " " + styles.SelectedRow.Render(inputLine)
 
@@ -77,20 +74,17 @@ func OverlayCenter(box string, termW, termH, boxW, boxH int) string {
 	boxLines := strings.Split(box, "\n")
 	startY := (termH - boxH) / 2
 	startX := (termW - boxW) / 2
-	if startY < 0 {
-		startY = 0
-	}
-	if startX < 0 {
-		startX = 0
-	}
 
 	var out strings.Builder
 	for y := 0; y < termH; y++ {
 		if y >= startY && y < startY+len(boxLines) {
 			bLine := boxLines[y-startY]
-			out.WriteString(strings.Repeat(" ", startX) + bLine + "\n")
+			out.WriteString(stringutil.SafeRepeat(" ", startX) + bLine)
 		} else {
-			out.WriteString(strings.Repeat(" ", termW) + "\n")
+			out.WriteString(stringutil.SafeRepeat(" ", termW))
+		}
+		if y < termH-1 {
+			out.WriteString("\n")
 		}
 	}
 	return out.String()

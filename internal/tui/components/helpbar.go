@@ -2,8 +2,11 @@ package components
 
 import (
 	"fmt"
-	"strings"
+
+	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"vibe-fi/internal/tui/theme"
+	"vibe-fi/internal/utils/stringutil"
 )
 
 // ViewMode mirrors AppMode from C++.
@@ -32,7 +35,15 @@ func RenderHelpBar(width int, mode ViewMode, msg string, autoplay bool, styles t
 
 	var content string
 	if msg != "" {
-		content = styles.HelpAlert.Render("MSG: " + msg)
+		truncatedMsg := msg
+		if lipgloss.Width(truncatedMsg) > innerW-7 {
+			maxMsg := innerW - 10
+			if maxMsg < 1 {
+				maxMsg = 1
+			}
+			truncatedMsg = ansi.Truncate(truncatedMsg, maxMsg, "...")
+		}
+		content = styles.HelpAlert.Render("MSG: " + truncatedMsg)
 	} else {
 		var text string
 		switch mode {
@@ -61,18 +72,20 @@ func RenderHelpBar(width int, mode ViewMode, msg string, autoplay bool, styles t
 		case ViewModeIntro:
 			text = "[L] Library [S] Search [P] Playlists [R] Resume [ENTER] Library [ESC] Quit"
 		}
+
+		if lipgloss.Width(text) > innerW-2 {
+			maxT := innerW - 5
+			if maxT < 1 {
+				maxT = 1
+			}
+			text = ansi.Truncate(text, maxT, "...")
+		}
 		content = styles.HelpKey.Render(text)
 	}
 
-	runes := []rune(content)
-	if len(runes) > innerW-2 {
-		content = string(runes[:innerW-2])
-	}
-	pad := innerW - len([]rune(content)) - 1
-	if pad < 0 {
-		pad = 0
-	}
-	line := " " + content + strings.Repeat(" ", pad)
+	cWidth := lipgloss.Width(content)
+	pad := innerW - 1 - cWidth
+	line := " " + content + stringutil.SafeRepeat(" ", pad)
 
 	innerLines := []string{line}
 	return RenderBoxWithTitle("", innerLines, width, 3, styles)

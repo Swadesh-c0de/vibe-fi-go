@@ -3,9 +3,13 @@ package views
 import (
 	"fmt"
 	"strings"
+
+	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"vibe-fi/internal/service/playlist"
 	"vibe-fi/internal/tui/components"
 	"vibe-fi/internal/tui/theme"
+	"vibe-fi/internal/utils/stringutil"
 )
 
 // RenderQueueView renders the upcoming play queue.
@@ -20,11 +24,8 @@ func RenderQueueView(width, height int, queue []playlist.PlaylistSong, queueInde
 
 	if len(queue) == 0 {
 		msg := "Queue is empty."
-		pad := (innerW - len(msg)) / 2
-		if pad < 0 {
-			pad = 0
-		}
-		lines[innerH/2] = strings.Repeat(" ", pad) + styles.StatusDim.Render(msg)
+		pad := (innerW - lipgloss.Width(msg)) / 2
+		lines[innerH/2] = stringutil.SafeRepeat(" ", pad) + styles.StatusDim.Render(msg)
 		return components.RenderBoxWithTitle("PLAY QUEUE", lines, width, height, styles)
 	}
 
@@ -41,14 +42,11 @@ func RenderQueueView(width, height int, queue []playlist.PlaylistSong, queueInde
 		}
 
 		row := fmt.Sprintf("%s%s (%s)", prefix, song.Title, song.Duration)
-		runes := []rune(row)
-		if len(runes) > innerW-2 {
-			row = string(runes[:innerW-5]) + "..."
+		if lipgloss.Width(row) > innerW-2 {
+			row = ansi.Truncate(row, innerW-5, "...")
 		}
-		pad := innerW - len([]rune(row))
-		if pad > 0 {
-			row += strings.Repeat(" ", pad)
-		}
+		pad := innerW - lipgloss.Width(row)
+		row += stringutil.SafeRepeat(" ", pad)
 
 		if idx == selectedIndex {
 			lines[i] = styles.SelectedRow.Render(row)

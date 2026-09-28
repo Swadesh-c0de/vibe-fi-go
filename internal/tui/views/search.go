@@ -3,9 +3,13 @@ package views
 import (
 	"fmt"
 	"strings"
+
+	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"vibe-fi/internal/service/search"
 	"vibe-fi/internal/tui/components"
 	"vibe-fi/internal/tui/theme"
+	"vibe-fi/internal/utils/stringutil"
 )
 
 // RenderSearchInput renders the search prompt dialog screen.
@@ -19,7 +23,7 @@ func RenderSearchInput(width, height int, query string, styles theme.Styles) str
 	}
 
 	prompt := "What do you want to listen to?"
-	pLeft := (innerW - len(prompt)) / 2
+	pLeft := (innerW - lipgloss.Width(prompt)) / 2
 	if pLeft < 0 {
 		pLeft = 0
 	}
@@ -28,7 +32,9 @@ func RenderSearchInput(width, height int, query string, styles theme.Styles) str
 	if promptY < 0 {
 		promptY = 0
 	}
-	lines[promptY] = strings.Repeat(" ", pLeft) + styles.StatusTitle.Render(prompt)
+	if promptY < innerH {
+		lines[promptY] = stringutil.SafeRepeat(" ", pLeft) + styles.StatusTitle.Render(prompt)
+	}
 
 	boxWidth := 60
 	if innerW-6 < boxWidth {
@@ -45,16 +51,14 @@ func RenderSearchInput(width, height int, query string, styles theme.Styles) str
 	boxY := promptY + 2
 	if boxY < innerH {
 		dispQuery := query
-		if len(dispQuery) > boxWidth-4 {
-			dispQuery = dispQuery[len(dispQuery)-(boxWidth-4):]
+		if lipgloss.Width(dispQuery) > boxWidth-4 {
+			dispQuery = ansi.Truncate(dispQuery, boxWidth-4, "")
 		}
 		cursorChar := "_"
 		field := fmt.Sprintf("> %s%s", dispQuery, cursorChar)
-		padField := boxWidth - len(field)
-		if padField > 0 {
-			field += strings.Repeat(" ", padField)
-		}
-		lines[boxY] = strings.Repeat(" ", boxX) + styles.SelectedRow.Render(field)
+		padField := boxWidth - lipgloss.Width(field)
+		field += stringutil.SafeRepeat(" ", padField)
+		lines[boxY] = stringutil.SafeRepeat(" ", boxX) + styles.SelectedRow.Render(field)
 	}
 
 	return components.RenderBoxWithTitle("SEARCH YOUTUBE", lines, width, height, styles)
@@ -72,11 +76,8 @@ func RenderSearchResults(width, height int, results []search.SearchResult, selec
 
 	if len(results) == 0 {
 		msg := "No results found or searching..."
-		pad := (innerW - len(msg)) / 2
-		if pad < 0 {
-			pad = 0
-		}
-		lines[innerH/2] = strings.Repeat(" ", pad) + styles.StatusDim.Render(msg)
+		pad := (innerW - lipgloss.Width(msg)) / 2
+		lines[innerH/2] = stringutil.SafeRepeat(" ", pad) + styles.StatusDim.Render(msg)
 		return components.RenderBoxWithTitle("SEARCH RESULTS", lines, width, height, styles)
 	}
 
@@ -87,9 +88,8 @@ func RenderSearchResults(width, height int, results []search.SearchResult, selec
 
 	// Header row
 	header := fmt.Sprintf(" %-4s %-*s %10s", "#", titleColW, "Title", "Duration")
-	if len(header) < innerW {
-		header += strings.Repeat(" ", innerW-len(header))
-	}
+	pad := innerW - lipgloss.Width(header)
+	header += stringutil.SafeRepeat(" ", pad)
 	lines[0] = styles.HeaderRow.Render(header)
 
 	visibleRows := innerH - 1
@@ -101,16 +101,13 @@ func RenderSearchResults(width, height int, results []search.SearchResult, selec
 
 		item := results[idx]
 		title := item.Title
-		runes := []rune(title)
-		if len(runes) > titleColW {
-			title = string(runes[:titleColW-3]) + "..."
+		if lipgloss.Width(title) > titleColW {
+			title = ansi.Truncate(title, titleColW-3, "...")
 		}
 
 		row := fmt.Sprintf(" %-4d %-*s %10s", idx+1, titleColW, title, item.Duration)
-		pad := innerW - len([]rune(row))
-		if pad > 0 {
-			row += strings.Repeat(" ", pad)
-		}
+		rPad := innerW - lipgloss.Width(row)
+		row += stringutil.SafeRepeat(" ", rPad)
 
 		if idx == selectedIndex {
 			lines[i+1] = styles.SelectedRow.Render(row)
