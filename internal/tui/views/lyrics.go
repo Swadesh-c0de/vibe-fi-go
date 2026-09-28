@@ -1,0 +1,14 @@
+package views
+
+import (
+	"vibe-fi/internal/player"
+	"vibe-fi/internal/service/lyrics"
+	"vibe-fi/internal/tui/components"
+	"vibe-fi/internal/tui/theme"
+)
+
+// RenderFullscreenLyricsView renders the lyrics viewer spanning the entire main area.
+func RenderFullscreenLyricsView(width, height int, p player.AudioPlayer, lyricsData lyrics.LyricsData, lyricsScrollOffset int, autoScroll bool, styles theme.Styles) (string, int) {
+	lyricsLines, newOffset := renderLyricsBody(width-2, height-2, p, lyricsData, lyricsScrollOffset, autoScroll, styles)
+	return components.RenderBoxWithTitle("LYRICS", lyricsLines, width, height, styles), newOffset
+}
