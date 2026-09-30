@@ -22,6 +22,7 @@ import (
 	"vibe-fi/internal/tui"
 	"vibe-fi/internal/tui/components"
 	"vibe-fi/internal/utils/bottle"
+	"vibe-fi/internal/utils/mem"
 	"vibe-fi/internal/utils/net"
 	"vibe-fi/internal/utils/stringutil"
 )
@@ -63,6 +64,8 @@ func printBottleStatus() {
 }
 
 func main() {
+	mem.TuneMemory()
+
 	progName := filepath.Base(os.Args[0])
 	args := os.Args[1:]
 

@@ -18,13 +18,38 @@ func RenderBoxWithTitle(title string, innerLines []string, width, height int, st
 	bStyle := styles.BorderLine
 	titleStyle := styles.BorderTitle
 
+	tl := styles.BorderTL
+	if tl == "" {
+		tl = bStyle.Render("┌")
+	}
+	tr := styles.BorderTR
+	if tr == "" {
+		tr = bStyle.Render("┐")
+	}
+	bl := styles.BorderBL
+	if bl == "" {
+		bl = bStyle.Render("└")
+	}
+	br := styles.BorderBR
+	if br == "" {
+		br = bStyle.Render("┘")
+	}
+	bv := styles.BorderV
+	if bv == "" {
+		bv = bStyle.Render("│")
+	}
+	bh := styles.BorderH
+	if bh == "" {
+		bh = bStyle.Render("─")
+	}
+
 	innerW := width - 2
 	innerH := height - 2
 
 	var out strings.Builder
 
 	// 1. Top border: ┌─ TITLE ──────┐
-	out.WriteString(bStyle.Render("┌"))
+	out.WriteString(tl)
 	if title != "" {
 		formattedTitle := " " + title + " "
 		tWidth := lipgloss.Width(formattedTitle)
@@ -36,7 +61,7 @@ func RenderBoxWithTitle(title string, innerLines []string, width, height int, st
 			formattedTitle = " " + ansi.Truncate(title, maxTitle, "...") + " "
 			tWidth = lipgloss.Width(formattedTitle)
 		}
-		out.WriteString(bStyle.Render("─"))
+		out.WriteString(bh)
 		out.WriteString(titleStyle.Render(formattedTitle))
 		rem := innerW - 1 - tWidth
 		if rem < 0 {
@@ -46,7 +71,7 @@ func RenderBoxWithTitle(title string, innerLines []string, width, height int, st
 	} else {
 		out.WriteString(bStyle.Render(strings.Repeat("─", innerW)))
 	}
-	out.WriteString(bStyle.Render("┐"))
+	out.WriteString(tr)
 	out.WriteString("\n")
 
 	// 2. Middle rows: │ line │
@@ -66,17 +91,17 @@ func RenderBoxWithTitle(title string, innerLines []string, width, height int, st
 			pad = 0
 		}
 
-		out.WriteString(bStyle.Render("│"))
+		out.WriteString(bv)
 		out.WriteString(line)
 		out.WriteString(stringutil.SafeRepeat(" ", pad))
-		out.WriteString(bStyle.Render("│"))
+		out.WriteString(bv)
 		out.WriteString("\n")
 	}
 
 	// 3. Bottom border: └────────────┘
-	out.WriteString(bStyle.Render("└"))
+	out.WriteString(bl)
 	out.WriteString(bStyle.Render(strings.Repeat("─", innerW)))
-	out.WriteString(bStyle.Render("┘"))
+	out.WriteString(br)
 
 	return out.String()
 }

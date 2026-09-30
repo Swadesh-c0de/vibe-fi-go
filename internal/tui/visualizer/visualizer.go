@@ -32,6 +32,20 @@ var (
 	PeakChar   = "▔"
 )
 
+// CachedBlockChars holds pre-rendered ANSI strings for block elements in a specific theme.
+type CachedBlockChars struct {
+	ThemeName    string
+	Base         [9]string
+	Mid          [9]string
+	High         [9]string
+	Peak         string
+	PeakSparkle  string
+	PeakTriangle string
+	FullBase     string
+	FullMid      string
+	FullHigh     string
+}
+
 // Visualizer maintains physics, animation history, and renders visualizer frames.
 type Visualizer struct {
 	CurrentProfile TrackVisualProfile
@@ -55,6 +69,15 @@ type Visualizer struct {
 	stereoFall  []float32
 
 	fetchAnimFrame int
+
+	// Reusable rendering buffers (Zero-allocation render loop)
+	cachedBlocks CachedBlockChars
+	gridW        int
+	gridH        int
+	grid         [][]string
+	lines        []string
+	targets      []float32
+	smoothed     []float32
 }
 
 // NewVisualizer creates a new visualizer engine instance.
@@ -80,6 +103,63 @@ func (v *Visualizer) Reset() {
 	v.stereoPeaks = nil
 	v.stereoHold = nil
 	v.stereoFall = nil
+}
+
+// EnsureCachedBlocks pre-renders styled block glyphs for the active theme, eliminating per-cell styling.
+func (v *Visualizer) EnsureCachedBlocks(styles theme.Styles) {
+	if v.cachedBlocks.ThemeName == styles.Theme.Name && v.cachedBlocks.ThemeName != "" {
+		return
+	}
+	v.cachedBlocks.ThemeName = styles.Theme.Name
+	for i := 0; i < 9; i++ {
+		char := BlockChars[i]
+		v.cachedBlocks.Base[i] = styles.VizBase.Render(char)
+		v.cachedBlocks.Mid[i] = styles.VizMid.Render(char)
+		v.cachedBlocks.High[i] = styles.VizHigh.Render(char)
+	}
+	v.cachedBlocks.Peak = styles.VizPeak.Render(PeakChar)
+	v.cachedBlocks.PeakSparkle = styles.VizPeak.Render("✦")
+	v.cachedBlocks.PeakTriangle = styles.VizPeak.Render("▲")
+	v.cachedBlocks.FullBase = v.cachedBlocks.Base[8]
+	v.cachedBlocks.FullMid = v.cachedBlocks.Mid[8]
+	v.cachedBlocks.FullHigh = v.cachedBlocks.High[8]
+}
+
+// PrepareGrid returns the reusable 2D grid reset to spaces without heap allocations.
+func (v *Visualizer) PrepareGrid(drawW, drawH int) [][]string {
+	if v.gridH != drawH || v.gridW != drawW || len(v.grid) != drawH {
+		v.gridH = drawH
+		v.gridW = drawW
+		v.grid = make([][]string, drawH)
+		for y := 0; y < drawH; y++ {
+			v.grid[y] = make([]string, drawW)
+		}
+		v.lines = make([]string, drawH)
+	}
+	for y := 0; y < drawH; y++ {
+		row := v.grid[y]
+		for x := 0; x < drawW; x++ {
+			row[x] = " "
+		}
+	}
+	return v.grid
+}
+
+// PrepareBuffers returns reusable float slices for target and smoothed spectrums.
+func (v *Visualizer) PrepareBuffers(numBars int) ([]float32, []float32) {
+	if len(v.targets) != numBars {
+		v.targets = make([]float32, numBars)
+		v.smoothed = make([]float32, numBars)
+	}
+	return v.targets, v.smoothed
+}
+
+// BuildLines joins the grid rows into the final output slice reusing v.lines.
+func (v *Visualizer) BuildLines(drawH int) []string {
+	for y := 0; y < drawH; y++ {
+		v.lines[y] = strings.Join(v.grid[y], "")
+	}
+	return v.lines
 }
 
 // RenderHeader computes the visualizer box title bar (including metronome & peak).
@@ -224,6 +304,8 @@ func (v *Visualizer) RenderBody(drawW, drawH int, p player.AudioPlayer, mode Vis
 	if vol > 1.2 {
 		vol = 1.2
 	}
+
+	v.EnsureCachedBlocks(styles)
 
 	switch mode {
 	case ModeNeonFlame:

@@ -2,3 +2,5 @@ build/
 *.log
 *.tmp
 .DS_Store
+vibe
+vibe.exe

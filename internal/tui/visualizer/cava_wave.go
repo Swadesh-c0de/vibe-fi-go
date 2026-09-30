@@ -2,7 +2,6 @@ package visualizer
 
 import (
 	"math"
-	"strings"
 	"vibe-fi/internal/player"
 	"vibe-fi/internal/tui/theme"
 )
@@ -67,7 +66,7 @@ func (v *Visualizer) renderCavaWave(drawW, drawH int, p player.AudioPlayer, pos 
 		hihatPhase := math.Mod(pos, beatInterval*0.25) / (beatInterval * 0.25)
 		hihat := float32(math.Exp(-hihatPhase*11.0)) * v.CurrentProfile.TrebleWeight
 
-		targets := make([]float32, numBars)
+		targets, smoothed := v.PrepareBuffers(numBars)
 		for i := 0; i < numBars; i++ {
 			t := float32(0.5)
 			if numBars > 1 {
@@ -103,7 +102,6 @@ func (v *Visualizer) renderCavaWave(drawW, drawH int, p player.AudioPlayer, pos 
 		}
 
 		// Monstercat bidirectional smoothing filter
-		smoothed := make([]float32, numBars)
 		copy(smoothed, targets)
 		for i := 1; i < numBars; i++ {
 			if smoothed[i-1]*0.68 > smoothed[i] {
@@ -168,14 +166,13 @@ func (v *Visualizer) renderCavaWave(drawW, drawH int, p player.AudioPlayer, pos 
 		}
 	}
 
-	// Grid generation: drawH rows, drawW columns
-	grid := make([][]string, drawH)
-	for y := 0; y < drawH; y++ {
-		grid[y] = make([]string, drawW)
-		for x := 0; x < drawW; x++ {
-			grid[y][x] = " "
-		}
-	}
+	// Grid generation: drawH rows, drawW columns (reusable buffer)
+	grid := v.PrepareGrid(drawW, drawH)
+
+	fullBase := v.cachedBlocks.FullBase
+	fullMid := v.cachedBlocks.FullMid
+	fullHigh := v.cachedBlocks.FullHigh
+	peakChar := v.cachedBlocks.Peak
 
 	for i := 0; i < numBars; i++ {
 		val := int(v.cavaBars[i])
@@ -186,33 +183,40 @@ func (v *Visualizer) renderCavaWave(drawW, drawH int, p player.AudioPlayer, pos 
 
 		for y := 0; y < drawH; y++ {
 			drawY := drawH - 1 - y
-			style := styles.VizBase
+			tier := 0
 			if y >= drawH*3/4 {
-				style = styles.VizHigh
+				tier = 2
 			} else if y >= drawH*2/5 {
-				style = styles.VizMid
+				tier = 1
 			}
 
 			if y < fullCells {
+				char := fullBase
+				if tier == 1 {
+					char = fullMid
+				} else if tier == 2 {
+					char = fullHigh
+				}
 				for k := 0; k < barW && (barX+k) < drawW; k++ {
-					grid[drawY][barX+k] = style.Render("█")
+					grid[drawY][barX+k] = char
 				}
 			} else if y == fullCells && rem > 0 {
-				char := BlockChars[rem]
+				char := v.cachedBlocks.Base[rem]
+				if tier == 1 {
+					char = v.cachedBlocks.Mid[rem]
+				} else if tier == 2 {
+					char = v.cachedBlocks.High[rem]
+				}
 				for k := 0; k < barW && (barX+k) < drawW; k++ {
-					grid[drawY][barX+k] = style.Render(char)
+					grid[drawY][barX+k] = char
 				}
 			} else if y == peakCell && peakCell > fullCells && peakCell < drawH {
 				for k := 0; k < barW && (barX+k) < drawW; k++ {
-					grid[drawY][barX+k] = styles.VizPeak.Render(PeakChar)
+					grid[drawY][barX+k] = peakChar
 				}
 			}
 		}
 	}
 
-	lines := make([]string, drawH)
-	for y := 0; y < drawH; y++ {
-		lines[y] = strings.Join(grid[y], "")
-	}
-	return lines
+	return v.BuildLines(drawH)
 }

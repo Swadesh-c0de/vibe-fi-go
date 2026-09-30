@@ -12,6 +12,14 @@ type Styles struct {
 	BorderBox   lipgloss.Style
 	BorderTitle lipgloss.Style
 
+	// Pre-rendered border glyphs to eliminate frame allocations
+	BorderV  string
+	BorderH  string
+	BorderTL string
+	BorderTR string
+	BorderBL string
+	BorderBR string
+
 	StatusBar   lipgloss.Style
 	StatusTitle lipgloss.Style
 	ProgressBar lipgloss.Style
@@ -45,6 +53,13 @@ func MakeStyles(t Theme) Styles {
 		BorderLine:  lineStyle,
 		BorderBox:   lineStyle,
 		BorderTitle: lipgloss.NewStyle().Bold(true).Foreground(t.BorderColor),
+
+		BorderV:  lineStyle.Render("│"),
+		BorderH:  lineStyle.Render("─"),
+		BorderTL: lineStyle.Render("┌"),
+		BorderTR: lineStyle.Render("┐"),
+		BorderBL: lineStyle.Render("└"),
+		BorderBR: lineStyle.Render("┘"),
 
 		StatusBar:   lineStyle,
 		StatusTitle: lipgloss.NewStyle().Bold(true).Foreground(t.BorderColor),

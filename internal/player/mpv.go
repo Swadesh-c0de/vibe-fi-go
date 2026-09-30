@@ -106,6 +106,7 @@ import (
 	"sync"
 	"unsafe"
 	"vibe-fi/internal/utils/bottle"
+	"vibe-fi/internal/utils/mem"
 )
 
 // MPVPlayer implements AudioPlayer wrapping libmpv via CGO.
@@ -149,15 +150,15 @@ func NewMPVPlayer() (*MPVPlayer, error) {
 	p.setOption("load-commands", "no")
 	p.setOption("load-auto-profiles", "no")
 
-	// Audio output fallback
-	p.setOption("ao", "pipewire,pulse,alsa,coreaudio,audiotrack,")
+	// Audio output fallback (Linux: pipewire/pulse/alsa, macOS: coreaudio, Windows: wasapi)
+	p.setOption("ao", "pipewire,pulse,alsa,coreaudio,wasapi,audiotrack,")
 
 	// Network resilience & buffer optimization
 	p.setOption("stream-lavf-o", "reconnect=1,reconnect_delay_max=5")
 	p.setOption("network-timeout", "30")
-	p.setOption("demuxer-max-bytes", "4MiB")
-	p.setOption("demuxer-max-back-bytes", "512KiB")
-	p.setOption("demuxer-readahead-secs", "15")
+	p.setOption("demuxer-max-bytes", "2048KiB")
+	p.setOption("demuxer-max-back-bytes", "256KiB")
+	p.setOption("demuxer-readahead-secs", "10")
 
 	// Locate yt-dlp
 	if ytdlPath := bottle.FindExecutable("yt-dlp"); ytdlPath != "" {
@@ -172,10 +173,15 @@ func NewMPVPlayer() (*MPVPlayer, error) {
 		return nil, fmt.Errorf("failed to initialize mpv: %s", C.GoString(C.mpv_error_string(status)))
 	}
 
+	mem.TrimMemory()
+
 	return p, nil
 }
 
 func (p *MPVPlayer) setOption(key, val string) {
+	if p.mpv == nil {
+		return
+	}
 	cKey := C.CString(key)
 	cVal := C.CString(val)
 	defer C.free(unsafe.Pointer(cKey))
@@ -186,6 +192,12 @@ func (p *MPVPlayer) setOption(key, val string) {
 func (p *MPVPlayer) Load(path string, mode string) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+
+	if p.mpv == nil {
+		return fmt.Errorf("player closed")
+	}
+
+	mem.PeriodicTrim()
 
 	p.trackFinished = false
 	p.playbackError = false
@@ -207,6 +219,9 @@ func (p *MPVPlayer) Load(path string, mode string) error {
 func (p *MPVPlayer) Play() error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	if p.mpv == nil {
+		return nil
+	}
 	flag := C.int(0)
 	cPause := C.CString("pause")
 	defer C.free(unsafe.Pointer(cPause))
@@ -220,6 +235,9 @@ func (p *MPVPlayer) Play() error {
 func (p *MPVPlayer) Pause() error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	if p.mpv == nil {
+		return nil
+	}
 	flag := C.int(1)
 	cPause := C.CString("pause")
 	defer C.free(unsafe.Pointer(cPause))
@@ -233,6 +251,9 @@ func (p *MPVPlayer) Pause() error {
 func (p *MPVPlayer) TogglePause() error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	if p.mpv == nil {
+		return nil
+	}
 	flag := C.int(0)
 	cPause := C.CString("pause")
 	defer C.free(unsafe.Pointer(cPause))
@@ -253,6 +274,9 @@ func (p *MPVPlayer) Stop() error {
 	p.trackFinished = false
 	p.playbackError = false
 	p.loadingActive = false
+	if p.mpv == nil {
+		return nil
+	}
 	ret := C.mpv_cmd_stop(p.mpv)
 	if ret < 0 {
 		return fmt.Errorf("mpv stop error: %s", C.GoString(C.mpv_error_string(ret)))
@@ -263,6 +287,9 @@ func (p *MPVPlayer) Stop() error {
 func (p *MPVPlayer) Seek(seconds float64) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	if p.mpv == nil {
+		return nil
+	}
 	secStr := strconv.FormatFloat(seconds, 'f', 2, 64)
 	cSec := C.CString(secStr)
 	defer C.free(unsafe.Pointer(cSec))
@@ -276,7 +303,7 @@ func (p *MPVPlayer) Seek(seconds float64) error {
 func (p *MPVPlayer) IsPlaying() bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if p.isIdleLocked() || p.isPausedLocked() || p.loadingActive || p.isBufferingLocked() {
+	if p.mpv == nil || p.isIdleLocked() || p.isPausedLocked() || p.loadingActive || p.isBufferingLocked() {
 		return false
 	}
 	var pos C.double
@@ -295,7 +322,7 @@ func (p *MPVPlayer) IsPaused() bool {
 }
 
 func (p *MPVPlayer) isPausedLocked() bool {
-	if p.isIdleLocked() {
+	if p.mpv == nil || p.isIdleLocked() {
 		return false
 	}
 	var flag C.int
@@ -314,6 +341,9 @@ func (p *MPVPlayer) IsIdle() bool {
 }
 
 func (p *MPVPlayer) isIdleLocked() bool {
+	if p.mpv == nil {
+		return true
+	}
 	var flag C.int = 1
 	cIdle := C.CString("idle-active")
 	defer C.free(unsafe.Pointer(cIdle))
@@ -326,6 +356,9 @@ func (p *MPVPlayer) isIdleLocked() bool {
 func (p *MPVPlayer) IsLoading() bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	if p.mpv == nil {
+		return false
+	}
 	if p.loadingActive {
 		return true
 	}
@@ -347,6 +380,9 @@ func (p *MPVPlayer) IsBuffering() bool {
 }
 
 func (p *MPVPlayer) isBufferingLocked() bool {
+	if p.mpv == nil {
+		return false
+	}
 	var flag C.int
 	cCache := C.CString("paused-for-cache")
 	defer C.free(unsafe.Pointer(cCache))
@@ -359,6 +395,9 @@ func (p *MPVPlayer) isBufferingLocked() bool {
 func (p *MPVPlayer) Position() float64 {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	if p.mpv == nil {
+		return 0
+	}
 	var pos C.double
 	cTimePos := C.CString("time-pos")
 	defer C.free(unsafe.Pointer(cTimePos))
@@ -371,6 +410,9 @@ func (p *MPVPlayer) Position() float64 {
 func (p *MPVPlayer) Duration() float64 {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	if p.mpv == nil {
+		return 0
+	}
 	var dur C.double
 	cDuration := C.CString("duration")
 	defer C.free(unsafe.Pointer(cDuration))
@@ -383,6 +425,9 @@ func (p *MPVPlayer) Duration() float64 {
 func (p *MPVPlayer) Volume() int {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	if p.mpv == nil {
+		return 100
+	}
 	var vol C.double = 100.0
 	cVolume := C.CString("volume")
 	defer C.free(unsafe.Pointer(cVolume))
@@ -395,6 +440,9 @@ func (p *MPVPlayer) Volume() int {
 func (p *MPVPlayer) SetVolume(volume int) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	if p.mpv == nil {
+		return nil
+	}
 	if volume < 0 {
 		volume = 0
 	}
@@ -411,6 +459,9 @@ func (p *MPVPlayer) SetVolume(volume int) error {
 func (p *MPVPlayer) GetMetadata(key string) string {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	if p.mpv == nil {
+		return ""
+	}
 	cKey := C.CString(key)
 	defer C.free(unsafe.Pointer(cKey))
 	val := C.mpv_get_property_string(p.mpv, cKey)
@@ -425,6 +476,9 @@ func (p *MPVPlayer) GetMetadata(key string) string {
 func (p *MPVPlayer) SetProperty(name, value string) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	if p.mpv == nil {
+		return nil
+	}
 	cName := C.CString(name)
 	cVal := C.CString(value)
 	defer C.free(unsafe.Pointer(cName))
@@ -439,6 +493,9 @@ func (p *MPVPlayer) SetProperty(name, value string) error {
 func (p *MPVPlayer) GetAudioStats() AudioLevelStats {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	if p.mpv == nil {
+		return AudioLevelStats{}
+	}
 	cStats := C.extract_astats(p.mpv)
 	return AudioLevelStats{
 		RMSOverall:    float32(cStats.rms_overall),
@@ -454,8 +511,15 @@ func (p *MPVPlayer) PollEvents() []PlayerEvent {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
+	if p.mpv == nil {
+		return nil
+	}
+
 	var events []PlayerEvent
 	for {
+		if p.mpv == nil {
+			break
+		}
 		ev := C.mpv_wait_event(p.mpv, 0)
 		if ev == nil || ev.event_id == C.MPV_EVENT_NONE {
 			break
@@ -479,14 +543,15 @@ func (p *MPVPlayer) PollEvents() []PlayerEvent {
 			errStr := C.GoString(C.get_mpv_end_file_error(ev))
 
 			// Invariant 6: Distinguish EOF from ERROR to prevent runaway autoplay skipping
-			if reason == C.MPV_END_FILE_REASON_EOF {
+			switch reason {
+			case C.MPV_END_FILE_REASON_EOF:
 				p.trackFinished = true
 				events = append(events, PlayerEvent{Type: EventEndFileEOF})
-			} else if reason == C.MPV_END_FILE_REASON_ERROR {
+			case C.MPV_END_FILE_REASON_ERROR:
 				p.playbackError = true
 				p.lastError = errStr
 				events = append(events, PlayerEvent{Type: EventEndFileError, Error: errStr})
-			} else if reason == C.MPV_END_FILE_REASON_STOP {
+			case C.MPV_END_FILE_REASON_STOP:
 				events = append(events, PlayerEvent{Type: EventEndFileStop})
 			}
 		}
@@ -546,8 +611,9 @@ func (p *MPVPlayer) Close() error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.mpv != nil {
-		C.mpv_terminate_destroy(p.mpv)
+		handle := p.mpv
 		p.mpv = nil
+		C.mpv_terminate_destroy(handle)
 	}
 	return nil
 }

@@ -3,7 +3,6 @@ package visualizer
 import (
 	"math"
 	"math/rand"
-	"strings"
 	"vibe-fi/internal/player"
 	"vibe-fi/internal/tui/theme"
 )
@@ -144,13 +143,12 @@ func (v *Visualizer) renderNeonFlame(drawW, drawH int, p player.AudioPlayer, pos
 		}
 	}
 
-	grid := make([][]string, drawH)
-	for y := 0; y < drawH; y++ {
-		grid[y] = make([]string, drawW)
-		for x := 0; x < drawW; x++ {
-			grid[y][x] = " "
-		}
-	}
+	// Grid generation: drawH rows, drawW columns (reusable buffer)
+	grid := v.PrepareGrid(drawW, drawH)
+
+	fullBase := v.cachedBlocks.FullBase
+	fullMid := v.cachedBlocks.FullMid
+	fullHigh := v.cachedBlocks.FullHigh
 
 	for i := 0; i < numBars; i++ {
 		val := int(v.flameBars[i])
@@ -161,39 +159,46 @@ func (v *Visualizer) renderNeonFlame(drawW, drawH int, p player.AudioPlayer, pos
 
 		for y := 0; y < drawH; y++ {
 			drawY := drawH - 1 - y
-			style := styles.VizBase
+			tier := 0
 			if y >= drawH*2/3 {
-				style = styles.VizHigh
+				tier = 2
 			} else if y >= drawH/3 {
-				style = styles.VizMid
+				tier = 1
 			}
 
 			if y < fullCells {
+				char := fullBase
+				if tier == 1 {
+					char = fullMid
+				} else if tier == 2 {
+					char = fullHigh
+				}
 				for k := 0; k < barW && (barX+k) < drawW; k++ {
-					grid[drawY][barX+k] = style.Render("█")
+					grid[drawY][barX+k] = char
 				}
 			} else if y == fullCells && rem > 0 {
-				char := BlockChars[rem]
+				char := v.cachedBlocks.Base[rem]
+				if tier == 1 {
+					char = v.cachedBlocks.Mid[rem]
+				} else if tier == 2 {
+					char = v.cachedBlocks.High[rem]
+				}
 				for k := 0; k < barW && (barX+k) < drawW; k++ {
-					grid[drawY][barX+k] = style.Render(char)
+					grid[drawY][barX+k] = char
 				}
 			} else if y == peakCell && peakCell > fullCells && peakCell < drawH {
-				crownSym := PeakChar
+				crownChar := v.cachedBlocks.Peak
 				if peakCell >= drawH*2/3 {
-					crownSym = "✦"
+					crownChar = v.cachedBlocks.PeakSparkle
 				} else if peakCell >= drawH/3 {
-					crownSym = "▲"
+					crownChar = v.cachedBlocks.PeakTriangle
 				}
 				for k := 0; k < barW && (barX+k) < drawW; k++ {
-					grid[drawY][barX+k] = styles.VizPeak.Render(crownSym)
+					grid[drawY][barX+k] = crownChar
 				}
 			}
 		}
 	}
 
-	lines := make([]string, drawH)
-	for y := 0; y < drawH; y++ {
-		lines[y] = strings.Join(grid[y], "")
-	}
-	return lines
+	return v.BuildLines(drawH)
 }

@@ -13,13 +13,22 @@ import (
 
 // FindExecutable searches for an executable in bottle/bin first, then in PATH.
 func FindExecutable(name string) string {
-	bottleBin := filepath.Join(config.GetBottleBinDir(), name)
-	if fi, err := os.Stat(bottleBin); err == nil && !fi.IsDir() && (fi.Mode()&0111 != 0) {
-		return bottleBin
+	candidates := []string{name}
+	if runtime.GOOS == "windows" {
+		candidates = []string{name + ".exe", name}
 	}
 
-	if p, err := exec.LookPath(name); err == nil {
-		return p
+	for _, cand := range candidates {
+		bottleBin := filepath.Join(config.GetBottleBinDir(), cand)
+		if fi, err := os.Stat(bottleBin); err == nil && !fi.IsDir() {
+			if runtime.GOOS == "windows" || fi.Mode()&0111 != 0 {
+				return bottleBin
+			}
+		}
+
+		if p, err := exec.LookPath(cand); err == nil {
+			return p
+		}
 	}
 
 	return ""
@@ -36,14 +45,19 @@ func EnsureBottledYtdlp() error {
 		return err
 	}
 
-	target := filepath.Join(binDir, "yt-dlp")
-
+	exeName := "yt-dlp"
 	var downloadURL string
-	if runtime.GOOS == "darwin" {
+	switch runtime.GOOS {
+	case "darwin":
 		downloadURL = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos"
-	} else {
+	case "windows":
+		exeName = "yt-dlp.exe"
+		downloadURL = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe"
+	default:
 		downloadURL = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp"
 	}
+
+	target := filepath.Join(binDir, exeName)
 
 	resp, err := http.Get(downloadURL)
 	if err != nil {

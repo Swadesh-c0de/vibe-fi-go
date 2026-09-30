@@ -138,6 +138,9 @@ func (p *PlayerInterface) Play() *dbus.Error {
 }
 
 func (p *PlayerInterface) Seek(offsetMicrosec int64) *dbus.Error {
+	if p.srv == nil || p.srv.player == nil {
+		return nil
+	}
 	sec := float64(offsetMicrosec) / 1000000.0
 	_ = p.srv.player.Seek(sec)
 	return nil
@@ -152,6 +155,9 @@ func (p *PlayerInterface) OpenUri(uri string) *dbus.Error {
 }
 
 func (p *PlayerInterface) PlaybackStatus() (string, *dbus.Error) {
+	if p.srv == nil || p.srv.player == nil {
+		return "Stopped", nil
+	}
 	if p.srv.player.IsPlaying() {
 		return "Playing", nil
 	} else if p.srv.player.IsPaused() {
@@ -161,6 +167,9 @@ func (p *PlayerInterface) PlaybackStatus() (string, *dbus.Error) {
 }
 
 func (p *PlayerInterface) Metadata() (map[string]dbus.Variant, *dbus.Error) {
+	if p.srv == nil || p.srv.player == nil {
+		return map[string]dbus.Variant{}, nil
+	}
 	title := p.srv.player.GetMetadata("media-title")
 	if title == "" {
 		title = p.srv.player.GetMetadata("filename")
@@ -176,16 +185,25 @@ func (p *PlayerInterface) Metadata() (map[string]dbus.Variant, *dbus.Error) {
 }
 
 func (p *PlayerInterface) Volume() (float64, *dbus.Error) {
+	if p.srv == nil || p.srv.player == nil {
+		return 1.0, nil
+	}
 	vol := float64(p.srv.player.Volume()) / 100.0
 	return vol, nil
 }
 
 func (p *PlayerInterface) SetVolume(v float64) *dbus.Error {
+	if p.srv == nil || p.srv.player == nil {
+		return nil
+	}
 	_ = p.srv.player.SetVolume(int(v * 100.0))
 	return nil
 }
 
 func (p *PlayerInterface) Position() (int64, *dbus.Error) {
+	if p.srv == nil || p.srv.player == nil {
+		return 0, nil
+	}
 	pos := int64(p.srv.player.Position() * 1000000.0)
 	return pos, nil
 }

@@ -16,6 +16,7 @@ import (
 	"vibe-fi/internal/tui/theme"
 	"vibe-fi/internal/tui/views"
 	"vibe-fi/internal/tui/visualizer"
+	"vibe-fi/internal/utils/mem"
 	"vibe-fi/internal/utils/net"
 	"vibe-fi/internal/utils/stringutil"
 )
@@ -27,6 +28,7 @@ type AppModel struct {
 	PlaylistManager *playlist.PlaylistManager
 	LyricsManager   *lyrics.LyricsManager
 	Visualizer      *visualizer.Visualizer
+	trimCounter     int
 
 	Width  int
 	Height int
@@ -328,6 +330,15 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case TickMsg:
+		if m.Quitting {
+			return m, nil
+		}
+		m.trimCounter++
+		if m.trimCounter >= 150 {
+			m.trimCounter = 0
+			mem.PeriodicTrim()
+		}
+
 		// Poll libmpv events
 		m.Player.PollEvents()
 
@@ -430,7 +441,7 @@ func (m *AppModel) handleConfirmQuitKey(msg tea.KeyMsg) tea.Cmd {
 	case "enter":
 		if m.ConfirmQuitSelection == 0 { // YES
 			m.saveCurrentState()
-			_ = m.Player.Close()
+			_ = m.Player.Stop()
 			m.Quitting = true
 			return tea.Quit
 		}
@@ -439,7 +450,7 @@ func (m *AppModel) handleConfirmQuitKey(msg tea.KeyMsg) tea.Cmd {
 		m.ShowConfirmQuit = false
 	case "y", "Y":
 		m.saveCurrentState()
-		_ = m.Player.Close()
+		_ = m.Player.Stop()
 		m.Quitting = true
 		return tea.Quit
 	}
@@ -471,6 +482,13 @@ func (m *AppModel) handleInputPromptKey(msg tea.KeyMsg) tea.Cmd {
 }
 
 func (m *AppModel) handleKey(msg tea.KeyMsg) tea.Cmd {
+	if msg.Type == tea.KeyCtrlC {
+		m.saveCurrentState()
+		_ = m.Player.Stop()
+		m.Quitting = true
+		return tea.Quit
+	}
+
 	keyStr := msg.String()
 
 	// Global Hotkeys when in Playback mode

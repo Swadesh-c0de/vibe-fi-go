@@ -1,0 +1,107 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release Tag (e.g. v1.1.4)'
+        required: true
+        default: 'v1.1.4'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build (${{ matrix.target.os }}-${{ matrix.target.arch }})
+    runs-on: ${{ matrix.target.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - os: linux
+            arch: amd64
+            runner: ubuntu-latest
+          - os: darwin
+            arch: arm64
+            runner: macos-latest
+          - os: darwin
+            arch: amd64
+            runner: macos-13
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache: true
+
+      - name: Install dependencies (Linux)
+        if: matrix.target.os == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libmpv-dev pkg-config
+
+      - name: Install dependencies (macOS)
+        if: matrix.target.os == 'darwin'
+        run: |
+          brew install mpv pkg-config
+          if [ -d "/opt/homebrew/lib/pkgconfig" ]; then
+            echo "PKG_CONFIG_PATH=/opt/homebrew/lib/pkgconfig:$PKG_CONFIG_PATH" >> $GITHUB_ENV
+          fi
+          if [ -d "/usr/local/lib/pkgconfig" ]; then
+            echo "PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH" >> $GITHUB_ENV
+          fi
+
+      - name: Build binary
+        run: |
+          mkdir -p build
+          go build -ldflags="-s -w" -o build/vibe ./cmd/vibe
+
+      - name: Package archive
+        run: |
+          ARCHIVE_NAME="vibe-${{ matrix.target.os }}-${{ matrix.target.arch }}.tar.gz"
+          cd build
+          tar -czvf "../${ARCHIVE_NAME}" vibe
+          cd ..
+          echo "ARCHIVE_NAME=${ARCHIVE_NAME}" >> $GITHUB_ENV
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vibe-${{ matrix.target.os }}-${{ matrix.target.arch }}
+          path: ${{ env.ARCHIVE_NAME }}
+
+  publish:
+    name: Publish Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Flatten release assets
+        run: |
+          mkdir -p release-assets
+          find artifacts -name "*.tar.gz" -exec mv {} release-assets/ \;
+          ls -lah release-assets/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-assets/*
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || inputs.tag }}

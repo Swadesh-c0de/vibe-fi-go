@@ -64,18 +64,32 @@
 - **libmpv** (`libmpv-dev` on Debian/Ubuntu, `mpv` on Arch/Fedora/macOS)
 - **yt-dlp** (optional; will be automatically installed in `~/.vibe-fi/bottle/bin/` if not present)
 
-### Quick Start
+### Quick Install (Recommended)
+
+Install the pre-built binary directly for your platform (Linux / macOS):
 
 ```bash
-# Build binary
+curl -fsSL https://raw.githubusercontent.com/Swadesh-c0de/vibe-fi-go/main/install.sh | bash
+```
+
+To install system-wide (`/usr/local/bin`):
+```bash
+curl -fsSL https://raw.githubusercontent.com/Swadesh-c0de/vibe-fi-go/main/install.sh | bash -s -- --global
+```
+
+---
+
+### Build from Source
+
+```bash
+# Clone the repository
+git clone https://github.com/Swadesh-c0de/vibe-fi-go.git
+cd vibe-fi-go
+
+# Run automated installer
+./install.sh
+
+# Or build manually using Make
 make build
-
-# Run directly
-make run
-
-# Run tests
-make test
-
-# Install to ~/.local/bin/vibe
 make install
 ```
