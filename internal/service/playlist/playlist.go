@@ -2,6 +2,7 @@ package playlist
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -14,9 +15,9 @@ import (
 
 // PlaylistSong represents a song record in a playlist.
 type PlaylistSong struct {
-	Title    string
-	URL      string
-	Duration string
+	Title    string `json:"title"`
+	URL      string `json:"url"`
+	Duration string `json:"duration"`
 }
 
 // Playlist represents an overview record of a playlist file.
@@ -43,6 +44,57 @@ func (m *PlaylistManager) playlistPath(name string) string {
 	return filepath.Join(m.playlistsDir, cleanName+".txt")
 }
 
+func (m *PlaylistManager) jsonPlaylistPath(name string) string {
+	cleanName := strings.ReplaceAll(name, "/", "_")
+	return filepath.Join(m.playlistsDir, cleanName+".json")
+}
+
+// ParsePlaylistLine parses a single line from a text playlist file.
+// Format is Title|URL|Duration. Since song titles frequently contain pipe characters
+// (e.g. "Song | Trap | NCS" or "Artist - Title | Official Video"), parsing is done
+// from right-to-left to ensure the URL and Duration are correctly extracted.
+func ParsePlaylistLine(line string) (PlaylistSong, bool) {
+	line = strings.TrimSpace(line)
+	if line == "" {
+		return PlaylistSong{}, false
+	}
+
+	lastPipe := strings.LastIndex(line, "|")
+	if lastPipe == -1 {
+		return PlaylistSong{}, false
+	}
+
+	secondLast := strings.LastIndex(line[:lastPipe], "|")
+	if secondLast != -1 {
+		title := stringutil.SanitizeText(line[:secondLast])
+		url := strings.TrimSpace(line[secondLast+1 : lastPipe])
+		duration := strings.TrimSpace(line[lastPipe+1:])
+		if duration == "" {
+			duration = "--:--"
+		}
+		if title == "" && url == "" {
+			return PlaylistSong{}, false
+		}
+		return PlaylistSong{
+			Title:    title,
+			URL:      url,
+			Duration: duration,
+		}, true
+	}
+
+	// Single pipe fallback: Title|URL
+	title := stringutil.SanitizeText(line[:lastPipe])
+	url := strings.TrimSpace(line[lastPipe+1:])
+	if title == "" && url == "" {
+		return PlaylistSong{}, false
+	}
+	return PlaylistSong{
+		Title:    title,
+		URL:      url,
+		Duration: "--:--",
+	}, true
+}
+
 // ListPlaylists lists all available playlists with their song counts.
 func (m *PlaylistManager) ListPlaylists() []Playlist {
 	m.mu.RLock()
@@ -54,18 +106,46 @@ func (m *PlaylistManager) ListPlaylists() []Playlist {
 		return result
 	}
 
+	seen := make(map[string]bool)
+
+	// First scan .txt playlists (vibe-fi standard)
 	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".txt") {
+		if entry.IsDir() {
 			continue
 		}
-		pName := strings.TrimSuffix(entry.Name(), ".txt")
-		pPath := filepath.Join(m.playlistsDir, entry.Name())
-		count := m.countSongs(pPath)
-		result = append(result, Playlist{
-			Name:      pName,
-			Path:      pPath,
-			SongCount: count,
-		})
+		name := entry.Name()
+		if strings.HasSuffix(name, ".txt") {
+			pName := strings.TrimSuffix(name, ".txt")
+			pPath := filepath.Join(m.playlistsDir, name)
+			count := m.countSongs(pPath)
+			seen[pName] = true
+			result = append(result, Playlist{
+				Name:      pName,
+				Path:      pPath,
+				SongCount: count,
+			})
+		}
+	}
+
+	// Fallback scan: include .json playlists if no corresponding .txt exists
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		if strings.HasSuffix(name, ".json") {
+			pName := strings.TrimSuffix(name, ".json")
+			if !seen[pName] {
+				pPath := filepath.Join(m.playlistsDir, name)
+				count := m.countSongs(pPath)
+				seen[pName] = true
+				result = append(result, Playlist{
+					Name:      pName,
+					Path:      pPath,
+					SongCount: count,
+				})
+			}
+		}
 	}
 
 	sort.Slice(result, func(i, j int) bool {
@@ -76,6 +156,22 @@ func (m *PlaylistManager) ListPlaylists() []Playlist {
 }
 
 func (m *PlaylistManager) countSongs(path string) int {
+	if strings.HasSuffix(path, ".json") {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return 0
+		}
+		var pj struct {
+			Songs []struct {
+				Title string `json:"title"`
+			} `json:"songs"`
+		}
+		if err := json.Unmarshal(data, &pj); err == nil {
+			return len(pj.Songs)
+		}
+		return 0
+	}
+
 	f, err := os.Open(path)
 	if err != nil {
 		return 0
@@ -85,7 +181,7 @@ func (m *PlaylistManager) countSongs(path string) int {
 	count := 0
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
-		if strings.TrimSpace(scanner.Text()) != "" {
+		if _, ok := ParsePlaylistLine(scanner.Text()); ok {
 			count++
 		}
 	}
@@ -97,29 +193,46 @@ func (m *PlaylistManager) GetPlaylistSongs(name string) []PlaylistSong {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
+	return m.getPlaylistSongsLocked(name)
+}
+
+func (m *PlaylistManager) getPlaylistSongsLocked(name string) []PlaylistSong {
 	var songs []PlaylistSong
 	pPath := m.playlistPath(name)
 	f, err := os.Open(pPath)
 	if err != nil {
+		// Fallback to .json if .txt does not exist
+		jsonPath := m.jsonPlaylistPath(name)
+		data, jerr := os.ReadFile(jsonPath)
+		if jerr == nil {
+			var pj struct {
+				Songs []struct {
+					Title    string `json:"title"`
+					URL      string `json:"url"`
+					Duration string `json:"duration"`
+				} `json:"songs"`
+			}
+			if err := json.Unmarshal(data, &pj); err == nil {
+				for _, s := range pj.Songs {
+					dur := s.Duration
+					if dur == "" {
+						dur = "--:--"
+					}
+					songs = append(songs, PlaylistSong{
+						Title:    stringutil.SanitizeText(s.Title),
+						URL:      s.URL,
+						Duration: dur,
+					})
+				}
+			}
+		}
 		return songs
 	}
 	defer f.Close()
 
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" {
-			continue
-		}
-		parts := strings.Split(line, "|")
-		if len(parts) >= 2 {
-			song := PlaylistSong{
-				Title: parts[0],
-				URL:   parts[1],
-			}
-			if len(parts) >= 3 {
-				song.Duration = parts[2]
-			}
+		if song, ok := ParsePlaylistLine(scanner.Text()); ok {
 			songs = append(songs, song)
 		}
 	}
@@ -148,11 +261,17 @@ func (m *PlaylistManager) CreatePlaylist(name string) error {
 	return nil
 }
 
-// DeletePlaylist deletes a playlist file.
+// DeletePlaylist deletes a playlist file (.txt and .json fallback).
 func (m *PlaylistManager) DeletePlaylist(name string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return os.Remove(m.playlistPath(name))
+
+	txtErr := os.Remove(m.playlistPath(name))
+	jsonErr := os.Remove(m.jsonPlaylistPath(name))
+	if txtErr != nil && jsonErr != nil {
+		return txtErr
+	}
+	return nil
 }
 
 // RenamePlaylist renames a playlist file.
@@ -160,15 +279,28 @@ func (m *PlaylistManager) RenamePlaylist(oldName, newName string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	oldPath := m.playlistPath(oldName)
-	newPath := m.playlistPath(newName)
-	return os.Rename(oldPath, newPath)
+	oldTxt := m.playlistPath(oldName)
+	newTxt := m.playlistPath(newName)
+	txtErr := os.Rename(oldTxt, newTxt)
+
+	oldJSON := m.jsonPlaylistPath(oldName)
+	newJSON := m.jsonPlaylistPath(newName)
+	_ = os.Rename(oldJSON, newJSON)
+
+	return txtErr
 }
 
-// AddSongToPlaylist appends a song to a playlist.
+// AddSongToPlaylist appends a song to a playlist, checking for duplicates.
 func (m *PlaylistManager) AddSongToPlaylist(playlistName string, song PlaylistSong) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
+	current := m.getPlaylistSongsLocked(playlistName)
+	for _, s := range current {
+		if s.URL == song.URL {
+			return nil // Avoid duplicate URLs
+		}
+	}
 
 	pPath := m.playlistPath(playlistName)
 	f, err := os.OpenFile(pPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
@@ -177,7 +309,11 @@ func (m *PlaylistManager) AddSongToPlaylist(playlistName string, song PlaylistSo
 	}
 	defer f.Close()
 
-	line := fmt.Sprintf("%s|%s|%s\n", song.Title, song.URL, song.Duration)
+	dur := song.Duration
+	if dur == "" {
+		dur = "--:--"
+	}
+	line := fmt.Sprintf("%s|%s|%s\n", song.Title, song.URL, dur)
 	_, err = f.WriteString(line)
 	return err
 }
@@ -187,37 +323,29 @@ func (m *PlaylistManager) RemoveSongFromPlaylist(playlistName string, index int)
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	pPath := m.playlistPath(playlistName)
-	f, err := os.Open(pPath)
-	if err != nil {
-		return err
-	}
-	var lines []string
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		text := scanner.Text()
-		if strings.TrimSpace(text) != "" {
-			lines = append(lines, text)
-		}
-	}
-	f.Close()
-
-	if index < 0 || index >= len(lines) {
+	songs := m.getPlaylistSongsLocked(playlistName)
+	if index < 0 || index >= len(songs) {
 		return fmt.Errorf("index out of range")
 	}
 
-	lines = append(lines[:index], lines[index+1:]...)
+	songs = append(songs[:index], songs[index+1:]...)
 
-	out, err := os.Create(pPath)
+	pPath := m.playlistPath(playlistName)
+	f, err := os.Create(pPath)
 	if err != nil {
 		return err
 	}
-	defer out.Close()
+	defer f.Close()
 
-	for _, l := range lines {
-		out.WriteString(l + "\n")
+	w := bufio.NewWriter(f)
+	for _, s := range songs {
+		dur := s.Duration
+		if dur == "" {
+			dur = "--:--"
+		}
+		w.WriteString(fmt.Sprintf("%s|%s|%s\n", s.Title, s.URL, dur))
 	}
-	return nil
+	return w.Flush()
 }
 
 // MoveSong moves a song from src playlist to dest playlist.

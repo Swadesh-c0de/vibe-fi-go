@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"path/filepath"
 	"strings"
 	"time"
@@ -160,7 +161,6 @@ func (m *AppModel) StartTrackPlayback(title, url, duration, artistHint string) t
 	m.LyricsAutoScroll = true
 	m.CurrentLyricsTitle = title
 
-	_ = m.Player.Stop()
 	_ = m.Player.Load(url, "replace")
 	if title != "" {
 		_ = m.Player.SetProperty("force-media-title", title)
@@ -263,12 +263,13 @@ func (m *AppModel) LoadState() tea.Cmd {
 			m.PlayQueue = m.PlaylistManager.GetPlaylistSongs(st.Playlist)
 		}
 
+		if st.Position > 0 {
+			_ = m.Player.SetProperty("start", fmt.Sprintf("%.2f", st.Position))
+		}
 		_ = m.Player.Load(st.Path, "replace")
+		_ = m.Player.SetProperty("start", "0")
 		if st.Title != "" {
 			_ = m.Player.SetProperty("force-media-title", st.Title)
-		}
-		if st.Position > 0 {
-			_ = m.Player.Seek(st.Position)
 		}
 		_ = m.Player.Play()
 
