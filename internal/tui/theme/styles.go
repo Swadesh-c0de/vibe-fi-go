@@ -46,6 +46,7 @@ type Styles struct {
 // MakeStyles creates the complete Lipgloss style suite for a given Theme.
 func MakeStyles(t Theme) Styles {
 	lineStyle := lipgloss.NewStyle().Foreground(t.BorderColor)
+	textStyle := lipgloss.NewStyle().Foreground(t.TextColor)
 
 	return Styles{
 		Theme: t,
@@ -62,25 +63,25 @@ func MakeStyles(t Theme) Styles {
 		BorderBR: lineStyle.Render("┘"),
 
 		StatusBar:   lineStyle,
-		StatusTitle: lipgloss.NewStyle().Bold(true).Foreground(t.BorderColor),
+		StatusTitle: lipgloss.NewStyle().Bold(true).Foreground(t.TextColor),
 		ProgressBar: lipgloss.NewStyle().Foreground(t.ProgressColor),
-		StatusDim:   lipgloss.NewStyle().Faint(true).Foreground(t.BorderColor),
+		StatusDim:   lipgloss.NewStyle().Faint(true).Foreground(t.TextColor),
 
 		HelpBar:   lineStyle,
 		HelpAlert: lipgloss.NewStyle().Bold(true).Foreground(t.AlertColor),
-		HelpKey:   lipgloss.NewStyle().Foreground(t.AlertColor),
+		HelpKey:   textStyle,
 
 		SelectedRow: lipgloss.NewStyle().Bold(true).Foreground(t.SelectedFgColor).Background(t.SelectedBgColor),
-		HeaderRow:   lipgloss.NewStyle().Bold(true).Underline(true),
+		HeaderRow:   lipgloss.NewStyle().Bold(true).Underline(true).Foreground(t.TextColor),
 		ActiveSong:  lipgloss.NewStyle().Bold(true).Foreground(t.ProgressColor),
 
-		VizBase: lipgloss.NewStyle().Bold(true).Foreground(t.VizBaseColor),
-		VizMid:  lipgloss.NewStyle().Bold(true).Foreground(t.VizMidColor),
+		VizBase: lipgloss.NewStyle().Foreground(t.VizBaseColor),
+		VizMid:  lipgloss.NewStyle().Foreground(t.VizMidColor),
 		VizHigh: lipgloss.NewStyle().Bold(true).Foreground(t.VizHighColor),
 		VizPeak: lipgloss.NewStyle().Bold(true).Foreground(t.VizPeakColor),
 
 		ModalBox:   lineStyle,
 		ModalBtn:   lipgloss.NewStyle().Foreground(t.BorderColor),
-		ModalBtnOn: lipgloss.NewStyle().Bold(true).Reverse(true).Foreground(t.AlertColor),
+		ModalBtnOn: lipgloss.NewStyle().Bold(true).Foreground(t.SelectedFgColor).Background(t.SelectedBgColor),
 	}
 }
