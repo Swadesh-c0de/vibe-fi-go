@@ -7,26 +7,6 @@ import (
 	"vibe-fi/internal/tui/theme"
 )
 
-// VisualizerMode defines the active visualizer rendering algorithm.
-type VisualizerMode int
-
-const (
-	ModeCavaWave VisualizerMode = iota
-	ModeNeonFlame
-	ModeStereoBars
-)
-
-func (m VisualizerMode) String() string {
-	switch m {
-	case ModeNeonFlame:
-		return "NEON FLAME"
-	case ModeStereoBars:
-		return "STEREO BARS"
-	default:
-		return "CAVA WAVE"
-	}
-}
-
 var (
 	BlockChars = []string{" ", " ", "▂", "▃", "▄", "▅", "▆", "▇", "█"}
 	PeakChar   = "▔"
@@ -46,7 +26,7 @@ type CachedBlockChars struct {
 	FullHigh     string
 }
 
-// Visualizer maintains physics, animation history, and renders visualizer frames.
+// Visualizer maintains physics, animation history, and renders Cava visualizer frames.
 type Visualizer struct {
 	CurrentProfile TrackVisualProfile
 
@@ -55,18 +35,6 @@ type Visualizer struct {
 	cavaPeaks []float32
 	cavaHold  []int
 	cavaFall  []float32
-
-	// Neon Flame state
-	flameBars  []float32
-	flamePeaks []float32
-	flameHold  []int
-	flameFall  []float32
-
-	// Stereo Bars state
-	stereoBars  []float32
-	stereoPeaks []float32
-	stereoHold  []int
-	stereoFall  []float32
 
 	fetchAnimFrame int
 
@@ -93,16 +61,6 @@ func (v *Visualizer) Reset() {
 	v.cavaPeaks = nil
 	v.cavaHold = nil
 	v.cavaFall = nil
-
-	v.flameBars = nil
-	v.flamePeaks = nil
-	v.flameHold = nil
-	v.flameFall = nil
-
-	v.stereoBars = nil
-	v.stereoPeaks = nil
-	v.stereoHold = nil
-	v.stereoFall = nil
 }
 
 // EnsureCachedBlocks pre-renders styled block glyphs for the active theme, eliminating per-cell styling.
@@ -163,20 +121,20 @@ func (v *Visualizer) BuildLines(drawH int) []string {
 }
 
 // RenderHeader computes the visualizer box title bar (including metronome & peak).
-func (v *Visualizer) RenderHeader(p player.AudioPlayer, mode VisualizerMode) string {
+func (v *Visualizer) RenderHeader(p player.AudioPlayer) string {
 	if p.IsLoading() || p.IsBuffering() {
 		state := "FETCHING STREAM"
 		if p.IsBuffering() {
 			state = "BUFFERING"
 		}
-		return fmt.Sprintf("VISUALIZER: %s [%s]", mode.String(), state)
+		return fmt.Sprintf("VISUALIZER: CAVA [%s]", state)
 	}
 
 	if p.IsIdle() {
-		return fmt.Sprintf("VISUALIZER: %s [IDLE]", mode.String())
+		return "VISUALIZER: CAVA [IDLE]"
 	}
 
-	modeTitle := fmt.Sprintf("VISUALIZER: %s", mode.String())
+	title := "VISUALIZER: CAVA"
 	isActive := p.IsPlaying() && !p.IsPaused() && !p.IsIdle() && !p.IsLoading()
 
 	if isActive {
@@ -200,20 +158,20 @@ func (v *Visualizer) RenderHeader(p player.AudioPlayer, mode VisualizerMode) str
 
 		if stats.Valid && stats.PeakOverall > 0.001 {
 			lvlPct := int(stats.PeakOverall * 100.0)
-			modeTitle += fmt.Sprintf(" %s [%d%% PEAK]", metro, lvlPct)
+			title += fmt.Sprintf(" %s [%d%% PEAK]", metro, lvlPct)
 		} else {
 			bpmDisplay := int(v.CurrentProfile.BPM)
-			modeTitle += fmt.Sprintf(" %s [~%d BPM]", metro, bpmDisplay)
+			title += fmt.Sprintf(" %s [~%d BPM]", metro, bpmDisplay)
 		}
 	} else if p.IsPaused() {
-		modeTitle += " [PAUSED]"
+		title += " [PAUSED]"
 	}
 
-	return modeTitle
+	return title
 }
 
-// RenderBody produces the inner lines of the visualizer (height x width).
-func (v *Visualizer) RenderBody(drawW, drawH int, p player.AudioPlayer, mode VisualizerMode, styles theme.Styles) []string {
+// RenderBody produces the inner lines of the Cava visualizer (height x width).
+func (v *Visualizer) RenderBody(drawW, drawH int, p player.AudioPlayer, styles theme.Styles) []string {
 	if drawW <= 0 || drawH <= 0 {
 		return nil
 	}
@@ -306,13 +264,5 @@ func (v *Visualizer) RenderBody(drawW, drawH int, p player.AudioPlayer, mode Vis
 	}
 
 	v.EnsureCachedBlocks(styles)
-
-	switch mode {
-	case ModeNeonFlame:
-		return v.renderNeonFlame(drawW, drawH, p, pos, vol, stats, styles)
-	case ModeStereoBars:
-		return v.renderStereoBars(drawW, drawH, p, pos, vol, stats, styles)
-	default:
-		return v.renderCavaWave(drawW, drawH, p, pos, vol, stats, styles)
-	}
+	return v.renderCavaWave(drawW, drawH, p, pos, vol, stats, styles)
 }

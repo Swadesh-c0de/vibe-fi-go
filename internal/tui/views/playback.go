@@ -14,7 +14,7 @@ import (
 )
 
 // RenderPlaybackView renders the dual Visualizer (40%) and Lyrics (60%) layout.
-func RenderPlaybackView(width, height int, p player.AudioPlayer, viz *visualizer.Visualizer, vizMode visualizer.VisualizerMode, lyricsData lyrics.LyricsData, lyricsScrollOffset int, autoScroll bool, styles theme.Styles) (string, int) {
+func RenderPlaybackView(width, height int, p player.AudioPlayer, viz *visualizer.Visualizer, lyricsData lyrics.LyricsData, lyricsScrollOffset int, autoScroll bool, styles theme.Styles) (string, int) {
 	if height < 6 {
 		height = 6
 	}
@@ -29,8 +29,8 @@ func RenderPlaybackView(width, height int, p player.AudioPlayer, viz *visualizer
 	}
 
 	// Top: Visualizer Box
-	vizHeader := viz.RenderHeader(p, vizMode)
-	vizBody := viz.RenderBody(width-2, vizH-2, p, vizMode, styles)
+	vizHeader := viz.RenderHeader(p)
+	vizBody := viz.RenderBody(width-2, vizH-2, p, styles)
 	vizBox := components.RenderBoxWithTitle(vizHeader, vizBody, width, vizH, styles)
 
 	// Bottom: Lyrics Box

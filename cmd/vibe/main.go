@@ -48,7 +48,6 @@ func printHelp(progName string) {
 	fmt.Println("  P           Manage Playlists")
 	fmt.Println("  C           Interactive Play Queue")
 	fmt.Println("  T           Cycle Themes (Midnight, Nord, Matrix, HyDE, Gruvbox, Slate)")
-	fmt.Println("  V           Cycle Visualizers (Cava Wave, Neon Flame, Stereo Bars)")
 	fmt.Println("  ESC / Q     Back / Quit")
 }
 

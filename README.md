@@ -23,11 +23,8 @@
 - **Zero-Configuration YouTube Streaming**: Direct audio streaming via `yt-dlp` without opening a browser.
 - **Local Audio Library**: Instant recursive browsing of local music folders with format detection (`.flac`, `.mp3`, `.wav`, `.m4a`, `.ogg`, `.opus`, `.aac`, `.alac`, `.aiff`, `.webm`).
 - **Synchronized LRC Lyrics**: Live line-by-line scrolling lyrics from `lrclib.net` with offline disk cache.
-- **Real-Time Audio Visualizers**:
-  - **Cava Wave**: Fluid wave spectrum with Monstercat neighbor smoothing and multi-tier theme gradients.
-  - **Neon Flame**: Mirrored equalizer volcano with beat metronome indicator and floating peak crowns.
-  - **Stereo Bars**: Classic graphic equalizer showing separate left and right channels.
-- **Curated Color Themes**: `Midnight` (default), `Matrix`, `Nord`, and `HyDE`.
+- **Real-Time Audio Visualizer**: Fluid Cava wave spectrum with Monstercat neighbor smoothing and multi-tier theme gradients.
+- **Curated Color Themes**: `Midnight` (default), `Nord`, `Matrix`, `HyDE`, `Gruvbox`, and `Slate`.
 - **Linux Media Keys (MPRIS)**: Native D-Bus integration for hardware media keys and `playerctl`.
 - **Discord Rich Presence**: Native Unix domain socket IPC displaying current track and artist.
 - **Full Backward Compatibility**: Reads and writes standard `~/.vibe-fi/state.ini` and plain text playlists (`Title|URL|Duration`).
@@ -48,8 +45,7 @@
 | <kbd>P</kbd> | Playlists manager |
 | <kbd>C</kbd> | View play queue |
 | <kbd>U</kbd> | Paste YouTube URL to play |
-| <kbd>V</kbd> | Switch visualizer (`Cava Wave` &rarr; `Neon Flame` &rarr; `Stereo Bars`) |
-| <kbd>T</kbd> | Switch theme (`Midnight` &rarr; `Matrix` &rarr; `Nord` &rarr; `HyDE`) |
+| <kbd>T</kbd> | Switch theme (`Midnight` &rarr; `Nord` &rarr; `Matrix` &rarr; `HyDE` &rarr; `Gruvbox` &rarr; `Slate`) |
 | <kbd>O</kbd> | Toggle autoplay (`ON` / `OFF`) |
 | <kbd>R</kbd> | Replay track (or restore session from home screen) |
 | <kbd>&uarr;</kbd> / <kbd>&darr;</kbd> | Scroll synced lyrics manually |

@@ -33,7 +33,7 @@ func TestAllViewsRendering(t *testing.T) {
 			{Timestamp: 10.0, Text: "Third line continuing"},
 		},
 	}
-	pb, _ := RenderPlaybackView(w, h, mock, viz, visualizer.ModeCavaWave, lyricsData, 0, true, styles)
+	pb, _ := RenderPlaybackView(w, h, mock, viz, lyricsData, 0, true, styles)
 	lines := strings.Split(pb, "\n")
 	if len(lines) != h {
 		t.Errorf("PlaybackView: expected %d lines, got %d", h, len(lines))

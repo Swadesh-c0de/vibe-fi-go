@@ -37,7 +37,6 @@ type AppModel struct {
 	Mode    components.ViewMode
 	Theme   theme.Theme
 	Styles  theme.Styles
-	VizMode visualizer.VisualizerMode
 
 	Autoplay      bool
 	StatusMessage string
@@ -100,7 +99,6 @@ func NewAppModel(p player.AudioPlayer) *AppModel {
 		Mode:                 components.ViewModeIntro,
 		Theme:                th,
 		Styles:               theme.MakeStyles(th),
-		VizMode:              visualizer.ModeCavaWave,
 		CurrentPath:          homeDir,
 		LibraryItems:         items,
 		QueueIndex:           -1,
@@ -222,7 +220,7 @@ func (m *AppModel) saveCurrentState() {
 		Volume:     m.Player.Volume(),
 		Index:      m.QueueIndex,
 		Theme:      m.Theme.Name,
-		Visualizer: int(m.VizMode),
+		Visualizer: 0,
 		Autoplay:   m.Autoplay,
 	}
 	if m.IsPlayingFromPlaylist {
@@ -242,7 +240,6 @@ func (m *AppModel) LoadState() tea.Cmd {
 		m.Theme = theme.GetTheme(st.Theme)
 		m.Styles = theme.MakeStyles(m.Theme)
 	}
-	m.VizMode = visualizer.VisualizerMode(st.Visualizer)
 	m.Autoplay = st.Autoplay
 	if st.Volume > 0 {
 		_ = m.Player.SetVolume(st.Volume)
@@ -554,10 +551,6 @@ func (m *AppModel) handleKey(msg tea.KeyMsg) tea.Cmd {
 			m.Styles = theme.MakeStyles(m.Theme)
 			m.saveCurrentState()
 			return m.ShowStatus("Theme: " + m.Theme.Name)
-		case "v", "V":
-			m.VizMode = (m.VizMode + 1) % 3
-			m.saveCurrentState()
-			return m.ShowStatus("Visualizer: " + m.VizMode.String())
 		case "u", "U":
 			m.ShowInputPrompt = true
 			m.InputPromptTitle = "Paste YouTube URL"
@@ -996,7 +989,7 @@ func (m *AppModel) View() string {
 	switch m.Mode {
 	case components.ViewModePlayback:
 		var newOffset int
-		mainView, newOffset = views.RenderPlaybackView(m.Width, mainH, m.Player, m.Visualizer, m.VizMode, m.LyricsData, m.LyricsScrollOffset, m.LyricsAutoScroll, m.Styles)
+		mainView, newOffset = views.RenderPlaybackView(m.Width, mainH, m.Player, m.Visualizer, m.LyricsData, m.LyricsScrollOffset, m.LyricsAutoScroll, m.Styles)
 		m.LyricsScrollOffset = newOffset
 
 	case components.ViewModeLibrary:

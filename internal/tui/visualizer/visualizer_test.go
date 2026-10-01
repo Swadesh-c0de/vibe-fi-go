@@ -15,21 +15,18 @@ func TestVisualizerRender(t *testing.T) {
 	styles := theme.MakeStyles(th)
 	viz := NewVisualizer()
 
-	modes := []VisualizerMode{ModeCavaWave, ModeNeonFlame, ModeStereoBars}
-	for _, m := range modes {
-		lines := viz.RenderBody(80, 10, mock, m, styles)
-		if len(lines) != 10 {
-			t.Errorf("mode %s: expected 10 lines, got %d", m.String(), len(lines))
+	lines := viz.RenderBody(80, 10, mock, styles)
+	if len(lines) != 10 {
+		t.Errorf("expected 10 lines, got %d", len(lines))
+	}
+	for i, l := range lines {
+		if len(l) == 0 {
+			t.Errorf("line %d is empty", i)
 		}
-		for i, l := range lines {
-			if len(l) == 0 {
-				t.Errorf("mode %s line %d is empty", m.String(), i)
-			}
-		}
+	}
 
-		header := viz.RenderHeader(mock, m)
-		if len(header) == 0 {
-			t.Errorf("mode %s header is empty", m.String())
-		}
+	header := viz.RenderHeader(mock)
+	if len(header) == 0 {
+		t.Errorf("header is empty")
 	}
 }
