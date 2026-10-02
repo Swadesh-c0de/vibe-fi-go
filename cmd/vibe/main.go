@@ -12,6 +12,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"vibe-fi/internal/config"
+	"vibe-fi/internal/integration/discord"
 	"vibe-fi/internal/integration/mpris"
 	"vibe-fi/internal/player"
 	"vibe-fi/internal/service/library"
@@ -180,13 +181,37 @@ func main() {
 		app.SetMode(components.ViewModePlayback)
 	}
 
+	// Discord Rich Presence client (Unix domain socket IPC)
+	discordClient := discord.NewClient("")
+	if discordClient != nil {
+		app.DiscordClient = discordClient
+		defer discordClient.Close()
+	}
+
 	// Create Bubble Tea program
 	p := tea.NewProgram(app, tea.WithAltScreen())
 
 	// Start D-Bus MPRIS server
 	mprisServer := mpris.StartServer(mpvPlayer, p)
 	if mprisServer != nil {
+		app.MprisServer = mprisServer
 		defer mprisServer.Stop()
+	}
+
+	// If initial CLI track was supplied, broadcast to MPRIS and Discord
+	if startPlayback && len(initialQueue) > 0 {
+		first := initialQueue[0]
+		if mprisServer != nil {
+			mprisServer.EmitTrack(first.Title, "", 0)
+			mprisServer.EmitPlaybackStatus("Playing")
+		}
+		if discordClient != nil {
+			artist, track := stringutil.CleanTrackTitle(first.Title)
+			if artist == "" {
+				artist = "Unknown Artist"
+			}
+			discordClient.UpdatePresence(track, artist)
+		}
 	}
 
 	// Background update check (non-blocking)

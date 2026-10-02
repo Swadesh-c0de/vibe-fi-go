@@ -2,6 +2,7 @@ package tui
 
 import (
 	"time"
+	"vibe-fi/internal/integration/mpris"
 	"vibe-fi/internal/service/lyrics"
 	"vibe-fi/internal/service/search"
 )
@@ -46,19 +47,17 @@ type UpdateDiscoveredMsg struct {
 }
 
 // MprisAction defines media key actions from Linux D-Bus.
-type MprisAction int
+type MprisAction = mpris.Action
 
 const (
-	MprisNone MprisAction = iota
-	MprisPlayPause
-	MprisPlay
-	MprisPause
-	MprisNext
-	MprisPrevious
-	MprisStop
+	MprisNone      = mpris.ActionNone
+	MprisPlayPause = mpris.ActionPlayPause
+	MprisPlay      = mpris.ActionPlay
+	MprisPause     = mpris.ActionPause
+	MprisNext      = mpris.ActionNext
+	MprisPrevious  = mpris.ActionPrevious
+	MprisStop      = mpris.ActionStop
 )
 
 // MprisActionMsg delivers a media key action to the Bubble Tea program.
-type MprisActionMsg struct {
-	Action MprisAction
-}
+type MprisActionMsg = mpris.ActionMsg

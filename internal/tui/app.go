@@ -8,6 +8,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"vibe-fi/internal/config"
+	"vibe-fi/internal/integration/discord"
+	"vibe-fi/internal/integration/mpris"
 	"vibe-fi/internal/player"
 	"vibe-fi/internal/service/library"
 	"vibe-fi/internal/service/lyrics"
@@ -29,6 +31,8 @@ type AppModel struct {
 	PlaylistManager *playlist.PlaylistManager
 	LyricsManager   *lyrics.LyricsManager
 	Visualizer      *visualizer.Visualizer
+	MprisServer     *mpris.Server
+	DiscordClient   *discord.Client
 	trimCounter     int
 
 	Width  int
@@ -165,11 +169,28 @@ func (m *AppModel) StartTrackPlayback(title, url, duration, artistHint string) t
 	}
 	_ = m.Player.Play()
 
+	durSec := stringutil.ParseDuration(duration)
+	if m.MprisServer != nil {
+		m.MprisServer.EmitTrack(title, artistHint, durSec)
+		m.MprisServer.EmitPlaybackStatus("Playing")
+	}
+	if m.DiscordClient != nil {
+		artist := artistHint
+		trackName := title
+		if artist == "" {
+			artist, trackName = stringutil.CleanTrackTitle(title)
+		}
+		if artist == "" {
+			artist = "Unknown Artist"
+		}
+		m.DiscordClient.UpdatePresence(trackName, artist)
+	}
+
 	m.saveCurrentState()
-	return m.fetchLyricsCmd(title, url, stringutil.ParseDuration(duration), artistHint)
+	return m.fetchLyricsCmd(title, url, durSec, artistHint)
 }
 
-func (m *AppModel) fetchLyricsCmd(title, _ string, duration float64, artistHint string) tea.Cmd {
+func (m *AppModel) fetchLyricsCmd(title, filePath string, duration float64, artistHint string) tea.Cmd {
 	m.LyricsRequestID++
 	reqID := m.LyricsRequestID
 	mgr := m.LyricsManager
@@ -179,7 +200,7 @@ func (m *AppModel) fetchLyricsCmd(title, _ string, duration float64, artistHint 
 		if artistHint != "" && artist == "" {
 			artist = artistHint
 		}
-		data, err := mgr.FetchLyrics(artist, track, duration)
+		data, err := mgr.FetchLyricsWithFile(filePath, artist, track, duration)
 		return LyricsFetchedMsg{
 			RequestID: reqID,
 			Title:     title,
@@ -345,10 +366,23 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.Autoplay {
 				nextCmd := m.playNext()
 				return m, tea.Batch(nextCmd, m.tickCmd())
+			} else {
+				if m.MprisServer != nil {
+					m.MprisServer.EmitPlaybackStatus("Stopped")
+				}
+				if m.DiscordClient != nil {
+					m.DiscordClient.ClearPresence()
+				}
 			}
 		}
 
 		if m.Player.ConsumePlaybackError() {
+			if m.MprisServer != nil {
+				m.MprisServer.EmitPlaybackStatus("Stopped")
+			}
+			if m.DiscordClient != nil {
+				m.DiscordClient.ClearPresence()
+			}
 			errStr := m.Player.GetLastError()
 			if errStr == "" {
 				errStr = "Playback error occurred"
@@ -418,16 +452,35 @@ func (m *AppModel) handleMprisAction(action MprisAction) tea.Cmd {
 	switch action {
 	case MprisPlayPause:
 		_ = m.Player.TogglePause()
+		if m.MprisServer != nil {
+			if m.Player.IsPaused() {
+				m.MprisServer.EmitPlaybackStatus("Paused")
+			} else {
+				m.MprisServer.EmitPlaybackStatus("Playing")
+			}
+		}
 	case MprisPlay:
 		_ = m.Player.Play()
+		if m.MprisServer != nil {
+			m.MprisServer.EmitPlaybackStatus("Playing")
+		}
 	case MprisPause:
 		_ = m.Player.Pause()
+		if m.MprisServer != nil {
+			m.MprisServer.EmitPlaybackStatus("Paused")
+		}
 	case MprisNext:
 		return m.playNext()
 	case MprisPrevious:
 		return m.playPrevious()
 	case MprisStop:
 		_ = m.Player.Stop()
+		if m.MprisServer != nil {
+			m.MprisServer.EmitPlaybackStatus("Stopped")
+		}
+		if m.DiscordClient != nil {
+			m.DiscordClient.ClearPresence()
+		}
 	}
 	return nil
 }
@@ -440,6 +493,13 @@ func (m *AppModel) handleConfirmQuitKey(msg tea.KeyMsg) tea.Cmd {
 		if m.ConfirmQuitSelection == 0 { // YES
 			m.saveCurrentState()
 			_ = m.Player.Stop()
+			if m.MprisServer != nil {
+				m.MprisServer.EmitPlaybackStatus("Stopped")
+			}
+			if m.DiscordClient != nil {
+				m.DiscordClient.ClearPresence()
+				m.DiscordClient.Close()
+			}
 			m.Quitting = true
 			return tea.Quit
 		}
@@ -449,6 +509,13 @@ func (m *AppModel) handleConfirmQuitKey(msg tea.KeyMsg) tea.Cmd {
 	case "y", "Y":
 		m.saveCurrentState()
 		_ = m.Player.Stop()
+		if m.MprisServer != nil {
+			m.MprisServer.EmitPlaybackStatus("Stopped")
+		}
+		if m.DiscordClient != nil {
+			m.DiscordClient.ClearPresence()
+			m.DiscordClient.Close()
+		}
 		m.Quitting = true
 		return tea.Quit
 	}
@@ -498,6 +565,13 @@ func (m *AppModel) handleKey(msg tea.KeyMsg) tea.Cmd {
 			return nil
 		case " ":
 			_ = m.Player.TogglePause()
+			if m.MprisServer != nil {
+				if m.Player.IsPaused() {
+					m.MprisServer.EmitPlaybackStatus("Paused")
+				} else {
+					m.MprisServer.EmitPlaybackStatus("Playing")
+				}
+			}
 			return nil
 		case "l", "L":
 			m.SetMode(components.ViewModeLibrary)
@@ -520,6 +594,9 @@ func (m *AppModel) handleKey(msg tea.KeyMsg) tea.Cmd {
 				}
 				_ = m.Player.Load(m.LastPlayedPath, "replace")
 				_ = m.Player.Play()
+				if m.MprisServer != nil {
+					m.MprisServer.EmitPlaybackStatus("Playing")
+				}
 				m.LyricsScrollOffset = 0
 				m.LyricsAutoScroll = true
 				statusCmd := m.ShowStatus("Replaying...")
@@ -529,15 +606,29 @@ func (m *AppModel) handleKey(msg tea.KeyMsg) tea.Cmd {
 			return nil
 		case "left":
 			_ = m.Player.Seek(-5.0)
+			if m.MprisServer != nil {
+				posMicro := int64(m.Player.Position() * 1000000.0)
+				m.MprisServer.EmitSeeked(posMicro)
+			}
 			return nil
 		case "right":
 			_ = m.Player.Seek(5.0)
+			if m.MprisServer != nil {
+				posMicro := int64(m.Player.Position() * 1000000.0)
+				m.MprisServer.EmitSeeked(posMicro)
+			}
 			return nil
 		case "+", "=":
 			_ = m.Player.SetVolume(m.Player.Volume() + 5)
+			if m.MprisServer != nil {
+				m.MprisServer.EmitVolume(m.Player.Volume())
+			}
 			return nil
 		case "-", "_":
 			_ = m.Player.SetVolume(m.Player.Volume() - 5)
+			if m.MprisServer != nil {
+				m.MprisServer.EmitVolume(m.Player.Volume())
+			}
 			return nil
 		case "a", "A":
 			m.LyricsAutoScroll = !m.LyricsAutoScroll

@@ -73,7 +73,12 @@ func (c *Client) sendFrame(opcode int, payload []byte) {
 	_ = binary.Write(&buf, binary.LittleEndian, int32(len(payload)))
 	buf.Write(payload)
 
-	_, _ = c.conn.Write(buf.Bytes())
+	_, err := c.conn.Write(buf.Bytes())
+	if err != nil {
+		_ = c.conn.Close()
+		c.conn = nil
+		c.connected = false
+	}
 }
 
 // UpdatePresence updates active song and artist on Discord.

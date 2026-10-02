@@ -114,13 +114,66 @@ func ParseSyncedLyrics(lrc string) []LyricLine {
 	return lines
 }
 
-// FetchLyrics searches lrclib.net for lyrics matching artist and title.
+// LoadLocalLRC looks for companion .lrc files in the same directory as the audio file.
+func (m *LyricsManager) LoadLocalLRC(filePath, title string) (LyricsData, bool) {
+
+	if filePath == "" || stringutil.IsURL(filePath) {
+		return LyricsData{}, false
+	}
+
+	dir := filepath.Dir(filePath)
+	ext := filepath.Ext(filePath)
+	baseNoExt := strings.TrimSuffix(filePath, ext)
+
+	candidates := []string{
+		baseNoExt + ".lrc",
+		baseNoExt + ".LRC",
+	}
+	if title != "" {
+		candidates = append(candidates,
+			filepath.Join(dir, title+".lrc"),
+			filepath.Join(dir, title+".LRC"),
+		)
+	}
+
+	for _, cand := range candidates {
+		info, err := os.Stat(cand)
+		if err == nil && !info.IsDir() {
+			content, err := os.ReadFile(cand)
+			if err == nil && len(content) > 0 {
+				raw := string(content)
+				synced := ParseSyncedLyrics(raw)
+				return LyricsData{
+					PlainLyrics:  raw,
+					SyncedLyrics: synced,
+					HasSynced:    len(synced) > 0,
+				}, true
+			}
+		}
+	}
+
+	return LyricsData{}, false
+}
+
+// FetchLyrics searches local companion files, lrclib.net, and cache for lyrics matching artist and title.
 func (m *LyricsManager) FetchLyrics(artist, title string, duration float64) (LyricsData, error) {
+	return m.FetchLyricsWithFile("", artist, title, duration)
+}
+
+// FetchLyricsWithFile searches local companion .lrc files first, then offline disk cache, then lrclib.net.
+func (m *LyricsManager) FetchLyricsWithFile(filePath, artist, title string, duration float64) (LyricsData, error) {
 	if artist == "" && title != "" {
 		artist, title = stringutil.CleanTrackTitle(title)
 	}
 
-	// Check offline cache first
+	// 1. Try local companion .lrc file first if this is a local audio file
+	if filePath != "" && !stringutil.IsURL(filePath) {
+		if localData, ok := m.LoadLocalLRC(filePath, title); ok {
+			return localData, nil
+		}
+	}
+
+	// 2. Check offline cache
 	if cached, ok := m.GetCachedLyrics(artist, title); ok {
 		return cached, nil
 	}
@@ -129,14 +182,14 @@ func (m *LyricsManager) FetchLyrics(artist, title string, duration float64) (Lyr
 		return LyricsData{PlainLyrics: "Network unavailable: lyrics offline."}, fmt.Errorf("offline")
 	}
 
-	// Step 1: Try exact match /api/get
+	// 3. Try exact match /api/get
 	data, err := m.fetchExact(artist, title, duration)
 	if err == nil && (data.HasSynced || data.PlainLyrics != "") {
 		m.saveToCache(artist, title, data)
 		return data, nil
 	}
 
-	// Step 2: Try search fallback /api/search?q=
+	// 4. Try search fallback /api/search?q=
 	query := title
 	if artist != "" {
 		query = artist + " " + title

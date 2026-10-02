@@ -1,14 +1,33 @@
 package mpris
 
 import (
+	"strings"
 	"sync"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/godbus/dbus/v5"
+	"github.com/godbus/dbus/v5/prop"
 	"vibe-fi/internal/config"
 	"vibe-fi/internal/player"
-	"vibe-fi/internal/tui"
 )
+
+// Action defines media key actions from Linux D-Bus.
+type Action int
+
+const (
+	ActionNone Action = iota
+	ActionPlayPause
+	ActionPlay
+	ActionPause
+	ActionNext
+	ActionPrevious
+	ActionStop
+)
+
+// ActionMsg delivers an MPRIS media key action to the Bubble Tea program.
+type ActionMsg struct {
+	Action Action
+}
 
 // Server coordinates the MPRIS D-Bus interface.
 type Server struct {
@@ -16,6 +35,7 @@ type Server struct {
 	conn    *dbus.Conn
 	program *tea.Program
 	player  player.AudioPlayer
+	props   *prop.Properties
 }
 
 // StartServer starts the D-Bus MPRIS daemon on Linux.
@@ -45,6 +65,52 @@ func StartServer(p player.AudioPlayer, prog *tea.Program) *Server {
 		"MprisSeek": "Seek",
 	}, "/org/mpris/MediaPlayer2", "org.mpris.MediaPlayer2.Player")
 
+	// Export standard org.freedesktop.DBus.Properties interface
+	propsMap := prop.Map{
+		"org.mpris.MediaPlayer2": {
+			"CanQuit":             {Value: true, Emit: prop.EmitConst},
+			"Fullscreen":          {Value: false, Emit: prop.EmitFalse},
+			"CanSetFullscreen":    {Value: false, Emit: prop.EmitConst},
+			"CanRaise":            {Value: false, Emit: prop.EmitConst},
+			"HasTrackList":        {Value: false, Emit: prop.EmitConst},
+			"Identity":            {Value: "Vibe-Fi (" + config.Version + ")", Emit: prop.EmitConst},
+			"SupportedUriSchemes": {Value: []string{"file", "http", "https"}, Emit: prop.EmitConst},
+			"SupportedMimeTypes":  {Value: []string{"audio/mpeg", "audio/flac", "audio/ogg", "audio/wav"}, Emit: prop.EmitConst},
+		},
+		"org.mpris.MediaPlayer2.Player": {
+			"PlaybackStatus": {Value: "Stopped", Emit: prop.EmitTrue},
+			"LoopStatus":     {Value: "None", Emit: prop.EmitTrue},
+			"Rate":           {Value: 1.0, Emit: prop.EmitFalse},
+			"Shuffle":        {Value: false, Emit: prop.EmitTrue},
+			"Metadata":       {Value: map[string]dbus.Variant{}, Emit: prop.EmitTrue},
+			"Volume": {
+				Value:    1.0,
+				Writable: true,
+				Emit:     prop.EmitTrue,
+				Callback: func(c *prop.Change) *dbus.Error {
+					if v, ok := c.Value.(float64); ok {
+						_ = p.SetVolume(int(v * 100.0))
+					}
+					return nil
+				},
+			},
+			"Position":      {Value: int64(0), Emit: prop.EmitFalse},
+			"MinimumRate":   {Value: 1.0, Emit: prop.EmitConst},
+			"MaximumRate":   {Value: 1.0, Emit: prop.EmitConst},
+			"CanControl":    {Value: true, Emit: prop.EmitConst},
+			"CanPlay":       {Value: true, Emit: prop.EmitConst},
+			"CanPause":      {Value: true, Emit: prop.EmitConst},
+			"CanSeek":       {Value: true, Emit: prop.EmitConst},
+			"CanGoNext":     {Value: true, Emit: prop.EmitConst},
+			"CanGoPrevious": {Value: true, Emit: prop.EmitConst},
+		},
+	}
+
+	props, err := prop.Export(conn, "/org/mpris/MediaPlayer2", propsMap)
+	if err == nil {
+		srv.props = props
+	}
+
 	return srv
 }
 
@@ -60,6 +126,66 @@ func (s *Server) Stop() {
 		_ = s.conn.Close()
 		s.conn = nil
 	}
+}
+
+// EmitPlaybackStatus updates the PlaybackStatus property and sends PropertiesChanged signal.
+func (s *Server) EmitPlaybackStatus(status string) {
+	if s == nil || s.props == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	_ = s.props.Set("org.mpris.MediaPlayer2.Player", "PlaybackStatus", dbus.MakeVariant(status))
+}
+
+// EmitTrack updates Metadata property and emits PropertiesChanged signal to desktop notifications.
+func (s *Server) EmitTrack(title, artist string, durSec float64) {
+	if s == nil || s.props == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if artist == "" && strings.Contains(title, " - ") {
+		parts := strings.SplitN(title, " - ", 2)
+		artist = parts[0]
+		title = parts[1]
+	}
+
+	durMicrosec := int64(durSec * 1000000.0)
+	meta := map[string]dbus.Variant{
+		"mpris:trackid": dbus.MakeVariant(dbus.ObjectPath("/org/mpris/MediaPlayer2/Track/1")),
+		"xesam:title":   dbus.MakeVariant(title),
+		"mpris:length":  dbus.MakeVariant(durMicrosec),
+	}
+	if artist != "" {
+		meta["xesam:artist"] = dbus.MakeVariant([]string{artist})
+	}
+
+	_ = s.props.Set("org.mpris.MediaPlayer2.Player", "Metadata", dbus.MakeVariant(meta))
+}
+
+// EmitVolume updates Volume property and emits PropertiesChanged signal.
+func (s *Server) EmitVolume(volPercent int) {
+	if s == nil || s.props == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	vol := float64(volPercent) / 100.0
+	_ = s.props.Set("org.mpris.MediaPlayer2.Player", "Volume", dbus.MakeVariant(vol))
+}
+
+// EmitSeeked emits the org.mpris.MediaPlayer2.Player.Seeked signal.
+func (s *Server) EmitSeeked(posMicrosec int64) {
+	if s == nil || s.conn == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	_ = s.conn.Emit("/org/mpris/MediaPlayer2", "org.mpris.MediaPlayer2.Player.Seeked", posMicrosec)
 }
 
 // RootInterface implements org.mpris.MediaPlayer2.
@@ -99,42 +225,45 @@ type PlayerInterface struct {
 
 func (p *PlayerInterface) Next() *dbus.Error {
 	if p.srv.program != nil {
-		p.srv.program.Send(tui.MprisActionMsg{Action: tui.MprisNext})
+		p.srv.program.Send(ActionMsg{Action: ActionNext})
 	}
 	return nil
 }
 
 func (p *PlayerInterface) Previous() *dbus.Error {
 	if p.srv.program != nil {
-		p.srv.program.Send(tui.MprisActionMsg{Action: tui.MprisPrevious})
+		p.srv.program.Send(ActionMsg{Action: ActionPrevious})
 	}
 	return nil
 }
 
 func (p *PlayerInterface) Pause() *dbus.Error {
 	if p.srv.program != nil {
-		p.srv.program.Send(tui.MprisActionMsg{Action: tui.MprisPause})
+		p.srv.program.Send(ActionMsg{Action: ActionPause})
+		p.srv.EmitPlaybackStatus("Paused")
 	}
 	return nil
 }
 
 func (p *PlayerInterface) PlayPause() *dbus.Error {
 	if p.srv.program != nil {
-		p.srv.program.Send(tui.MprisActionMsg{Action: tui.MprisPlayPause})
+		p.srv.program.Send(ActionMsg{Action: ActionPlayPause})
 	}
 	return nil
 }
 
 func (p *PlayerInterface) Stop() *dbus.Error {
 	if p.srv.program != nil {
-		p.srv.program.Send(tui.MprisActionMsg{Action: tui.MprisStop})
+		p.srv.program.Send(ActionMsg{Action: ActionStop})
+		p.srv.EmitPlaybackStatus("Stopped")
 	}
 	return nil
 }
 
 func (p *PlayerInterface) Play() *dbus.Error {
 	if p.srv.program != nil {
-		p.srv.program.Send(tui.MprisActionMsg{Action: tui.MprisPlay})
+		p.srv.program.Send(ActionMsg{Action: ActionPlay})
+		p.srv.EmitPlaybackStatus("Playing")
 	}
 	return nil
 }
@@ -145,10 +274,20 @@ func (p *PlayerInterface) MprisSeek(offsetMicrosec int64) *dbus.Error {
 	}
 	sec := float64(offsetMicrosec) / 1000000.0
 	_ = p.srv.player.Seek(sec)
+	newPos := int64(p.srv.player.Position() * 1000000.0)
+	p.srv.EmitSeeked(newPos)
 	return nil
 }
 
 func (p *PlayerInterface) SetPosition(trackID dbus.ObjectPath, positionMicrosec int64) *dbus.Error {
+	if p.srv == nil || p.srv.player == nil {
+		return nil
+	}
+	targetSec := float64(positionMicrosec) / 1000000.0
+	delta := targetSec - p.srv.player.Position()
+	_ = p.srv.player.Seek(delta)
+	newPos := int64(p.srv.player.Position() * 1000000.0)
+	p.srv.EmitSeeked(newPos)
 	return nil
 }
 
@@ -174,7 +313,16 @@ func (p *PlayerInterface) Metadata() (map[string]dbus.Variant, *dbus.Error) {
 	}
 	title := p.srv.player.GetMetadata("media-title")
 	if title == "" {
+		title = p.srv.player.GetMetadata("force-media-title")
+	}
+	if title == "" {
 		title = p.srv.player.GetMetadata("filename")
+	}
+	artist := p.srv.player.GetMetadata("artist")
+	if artist == "" && strings.Contains(title, " - ") {
+		parts := strings.SplitN(title, " - ", 2)
+		artist = parts[0]
+		title = parts[1]
 	}
 	durMicrosec := int64(p.srv.player.Duration() * 1000000.0)
 
@@ -182,6 +330,9 @@ func (p *PlayerInterface) Metadata() (map[string]dbus.Variant, *dbus.Error) {
 		"mpris:trackid": dbus.MakeVariant(dbus.ObjectPath("/org/mpris/MediaPlayer2/Track/1")),
 		"xesam:title":   dbus.MakeVariant(title),
 		"mpris:length":  dbus.MakeVariant(durMicrosec),
+	}
+	if artist != "" {
+		meta["xesam:artist"] = dbus.MakeVariant([]string{artist})
 	}
 	return meta, nil
 }
@@ -198,7 +349,9 @@ func (p *PlayerInterface) SetVolume(v float64) *dbus.Error {
 	if p.srv == nil || p.srv.player == nil {
 		return nil
 	}
-	_ = p.srv.player.SetVolume(int(v * 100.0))
+	volPct := int(v * 100.0)
+	_ = p.srv.player.SetVolume(volPct)
+	p.srv.EmitVolume(volPct)
 	return nil
 }
 
