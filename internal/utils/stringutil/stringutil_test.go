@@ -55,3 +55,37 @@ func TestFuzzyMatch(t *testing.T) {
 		t.Errorf("expected false")
 	}
 }
+
+func TestDevanagariWidth(t *testing.T) {
+	tests := []struct {
+		str      string
+		expected int
+	}{
+		{"छोड़ के न चल पड़य तू", 15},
+		{"तन्ने मेरी याद, आवैगी", 14},
+		{"कण कड़े रात खवेगी", 12},
+		{"य ते मन्ने मर खंव रै", 15},
+		{"स्यूं मन्ने, छोड़ के गय?", 16},
+		{"Hello World", 11},
+	}
+
+	for _, tt := range tests {
+		got := Width(tt.str)
+		if got != tt.expected {
+			t.Errorf("Width(%q) = %d, expected %d", tt.str, got, tt.expected)
+		}
+	}
+
+	// Test PadRight
+	padded := PadRight("छोड़ के न चल पड़य तू", 20)
+	if Width(padded) != 20 {
+		t.Errorf("PadRight width = %d, expected 20", Width(padded))
+	}
+
+	// Test PadCenter
+	centered := PadCenter("छोड़ के न चल पड़य तू", 25)
+	if Width(centered) != 25 {
+		t.Errorf("PadCenter width = %d, expected 25", Width(centered))
+	}
+}
+

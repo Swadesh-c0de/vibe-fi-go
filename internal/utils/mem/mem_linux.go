@@ -27,8 +27,8 @@ import "runtime/debug"
 // and sets GC target pacer and soft memory limit for low-RAM audio playback.
 func TuneMemory() {
 	C.c_tune_memory()
-	debug.SetGCPercent(40)
-	debug.SetMemoryLimit(50 * 1024 * 1024) // 50MB soft limit
+	debug.SetGCPercent(25)
+	debug.SetMemoryLimit(35 * 1024 * 1024) // 35MB soft limit
 }
 
 // TrimMemory calls malloc_trim(0) to release glibc heap arenas back to Linux.

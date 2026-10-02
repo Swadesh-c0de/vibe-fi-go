@@ -3,7 +3,6 @@ package components
 import (
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 	"vibe-fi/internal/tui/theme"
 	"vibe-fi/internal/utils/stringutil"
@@ -52,14 +51,14 @@ func RenderBoxWithTitle(title string, innerLines []string, width, height int, st
 	out.WriteString(tl)
 	if title != "" {
 		formattedTitle := " " + title + " "
-		tWidth := lipgloss.Width(formattedTitle)
+		tWidth := stringutil.Width(formattedTitle)
 		if tWidth > innerW-2 {
 			maxTitle := innerW - 5
 			if maxTitle < 1 {
 				maxTitle = 1
 			}
 			formattedTitle = " " + ansi.Truncate(title, maxTitle, "...") + " "
-			tWidth = lipgloss.Width(formattedTitle)
+			tWidth = stringutil.Width(formattedTitle)
 		}
 		out.WriteString(bh)
 		out.WriteString(titleStyle.Render(formattedTitle))
@@ -81,10 +80,10 @@ func RenderBoxWithTitle(title string, innerLines []string, width, height int, st
 			line = innerLines[i]
 		}
 
-		lineW := lipgloss.Width(line)
+		lineW := stringutil.Width(line)
 		if lineW > innerW {
 			line = ansi.Truncate(line, innerW, "")
-			lineW = lipgloss.Width(line)
+			lineW = stringutil.Width(line)
 		}
 		pad := innerW - lineW
 		if pad < 0 {

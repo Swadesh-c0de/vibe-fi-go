@@ -12,7 +12,6 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"vibe-fi/internal/config"
-	"vibe-fi/internal/integration/discord"
 	"vibe-fi/internal/integration/mpris"
 	"vibe-fi/internal/player"
 	"vibe-fi/internal/service/library"
@@ -189,10 +188,6 @@ func main() {
 	if mprisServer != nil {
 		defer mprisServer.Stop()
 	}
-
-	// Start Discord RPC
-	discordClient := discord.NewClient("")
-	defer discordClient.Close()
 
 	// Background update check (non-blocking)
 	if !skipUpdate {

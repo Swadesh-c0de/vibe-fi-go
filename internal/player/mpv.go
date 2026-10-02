@@ -135,6 +135,10 @@ func NewMPVPlayer() (*MPVPlayer, error) {
 
 	// Audio-only & performance flags
 	p.setOption("vo", "null")
+	p.setOption("vd", "null")
+	p.setOption("sub", "no")
+	p.setOption("sub-auto", "no")
+	p.setOption("embeddedfonts", "no")
 	p.setOption("audio-display", "no")
 	p.setOption("ytdl", "yes")
 	p.setOption("ytdl-format", "251/140/bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio/best")
@@ -156,9 +160,9 @@ func NewMPVPlayer() (*MPVPlayer, error) {
 	// Network resilience & buffer optimization
 	p.setOption("stream-lavf-o", "reconnect=1,reconnect_delay_max=5")
 	p.setOption("network-timeout", "30")
-	p.setOption("demuxer-max-bytes", "2048KiB")
-	p.setOption("demuxer-max-back-bytes", "256KiB")
-	p.setOption("demuxer-readahead-secs", "10")
+	p.setOption("demuxer-max-bytes", "1024KiB")
+	p.setOption("demuxer-max-back-bytes", "128KiB")
+	p.setOption("demuxer-readahead-secs", "5")
 
 	// Locate yt-dlp
 	if ytdlPath := bottle.FindExecutable("yt-dlp"); ytdlPath != "" {

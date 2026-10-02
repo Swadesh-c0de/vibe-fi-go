@@ -9,21 +9,17 @@ import (
 
 var (
 	BlockChars = []string{" ", " ", "▂", "▃", "▄", "▅", "▆", "▇", "█"}
-	PeakChar   = "▔"
 )
 
 // CachedBlockChars holds pre-rendered ANSI strings for block elements in a specific theme.
 type CachedBlockChars struct {
-	ThemeName    string
-	Base         [9]string
-	Mid          [9]string
-	High         [9]string
-	Peak         string
-	PeakSparkle  string
-	PeakTriangle string
-	FullBase     string
-	FullMid      string
-	FullHigh     string
+	ThemeName string
+	Base      [9]string
+	Mid       [9]string
+	High      [9]string
+	FullBase  string
+	FullMid   string
+	FullHigh  string
 }
 
 // Visualizer maintains physics, animation history, and renders Cava visualizer frames.
@@ -31,10 +27,7 @@ type Visualizer struct {
 	CurrentProfile TrackVisualProfile
 
 	// Cava Wave state
-	cavaBars  []float32
-	cavaPeaks []float32
-	cavaHold  []int
-	cavaFall  []float32
+	cavaBars []float32
 
 	fetchAnimFrame int
 
@@ -55,12 +48,9 @@ func NewVisualizer() *Visualizer {
 	return v
 }
 
-// Reset clears all animation and peak vectors.
+// Reset clears all animation vectors.
 func (v *Visualizer) Reset() {
 	v.cavaBars = nil
-	v.cavaPeaks = nil
-	v.cavaHold = nil
-	v.cavaFall = nil
 }
 
 // EnsureCachedBlocks pre-renders styled block glyphs for the active theme, eliminating per-cell styling.
@@ -75,9 +65,6 @@ func (v *Visualizer) EnsureCachedBlocks(styles theme.Styles) {
 		v.cachedBlocks.Mid[i] = styles.VizMid.Render(char)
 		v.cachedBlocks.High[i] = styles.VizHigh.Render(char)
 	}
-	v.cachedBlocks.Peak = styles.VizPeak.Render(PeakChar)
-	v.cachedBlocks.PeakSparkle = styles.VizPeak.Render("✦")
-	v.cachedBlocks.PeakTriangle = styles.VizPeak.Render("▲")
 	v.cachedBlocks.FullBase = v.cachedBlocks.Base[8]
 	v.cachedBlocks.FullMid = v.cachedBlocks.Mid[8]
 	v.cachedBlocks.FullHigh = v.cachedBlocks.High[8]
@@ -209,19 +196,20 @@ func (v *Visualizer) RenderBody(drawW, drawH int, p player.AudioPlayer, styles t
 		}
 
 		for y := 0; y < drawH; y++ {
-			if y == msgY {
+			switch y {
+			case msgY:
 				leftPad := (drawW - len(msg)) / 2
 				if leftPad < 0 {
 					leftPad = 0
 				}
 				lines[y] = strings.Repeat(" ", leftPad) + styles.VizMid.Render(msg)
-			} else if y == pulseY {
+			case pulseY:
 				leftPad := (drawW - len(pulse)) / 2
 				if leftPad < 0 {
 					leftPad = 0
 				}
 				lines[y] = strings.Repeat(" ", leftPad) + styles.ProgressBar.Render(pulse)
-			} else {
+			default:
 				lines[y] = strings.Repeat(" ", drawW)
 			}
 		}
@@ -264,5 +252,5 @@ func (v *Visualizer) RenderBody(drawW, drawH int, p player.AudioPlayer, styles t
 	}
 
 	v.EnsureCachedBlocks(styles)
-	return v.renderCavaWave(drawW, drawH, p, pos, vol, stats, styles)
+	return v.renderCavaWave(drawW, drawH, p, pos, vol, stats)
 }

@@ -48,11 +48,12 @@ func RenderQueueView(width, height int, queue []playlist.PlaylistSong, queueInde
 		pad := innerW - lipgloss.Width(row)
 		row += stringutil.SafeRepeat(" ", pad)
 
-		if idx == selectedIndex {
+		switch idx {
+		case selectedIndex:
 			lines[i] = styles.SelectedRow.Render(row)
-		} else if idx == queueIndex {
+		case queueIndex:
 			lines[i] = styles.ActiveSong.Render(row)
-		} else {
+		default:
 			lines[i] = row
 		}
 	}

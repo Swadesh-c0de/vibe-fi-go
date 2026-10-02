@@ -169,7 +169,7 @@ func (m *AppModel) StartTrackPlayback(title, url, duration, artistHint string) t
 	return m.fetchLyricsCmd(title, url, stringutil.ParseDuration(duration), artistHint)
 }
 
-func (m *AppModel) fetchLyricsCmd(title, url string, duration float64, artistHint string) tea.Cmd {
+func (m *AppModel) fetchLyricsCmd(title, _ string, duration float64, artistHint string) tea.Cmd {
 	m.LyricsRequestID++
 	reqID := m.LyricsRequestID
 	mgr := m.LyricsManager
@@ -539,6 +539,12 @@ func (m *AppModel) handleKey(msg tea.KeyMsg) tea.Cmd {
 		case "-", "_":
 			_ = m.Player.SetVolume(m.Player.Volume() - 5)
 			return nil
+		case "a", "A":
+			m.LyricsAutoScroll = !m.LyricsAutoScroll
+			if m.LyricsAutoScroll {
+				return m.ShowStatus("Lyrics Auto-Scroll: ON")
+			}
+			return m.ShowStatus("Lyrics Auto-Scroll: OFF")
 		case "o", "O":
 			m.Autoplay = !m.Autoplay
 			autoStr := "OFF"
@@ -944,12 +950,20 @@ func (m *AppModel) handleKey(msg tea.KeyMsg) tea.Cmd {
 		switch keyStr {
 		case "esc", "q", "Q":
 			m.SetMode(components.ViewModePlayback)
+		case "a", "A":
+			m.LyricsAutoScroll = !m.LyricsAutoScroll
+			if m.LyricsAutoScroll {
+				return m.ShowStatus("Lyrics Auto-Scroll: ON")
+			}
+			return m.ShowStatus("Lyrics Auto-Scroll: OFF")
 		case "up", "k":
 			if m.LyricsScrollOffset > 0 {
 				m.LyricsScrollOffset--
 			}
+			m.LyricsAutoScroll = false
 		case "down", "j":
 			m.LyricsScrollOffset++
+			m.LyricsAutoScroll = false
 		}
 	}
 
@@ -989,8 +1003,10 @@ func (m *AppModel) View() string {
 	switch m.Mode {
 	case components.ViewModePlayback:
 		var newOffset int
-		mainView, newOffset = views.RenderPlaybackView(m.Width, mainH, m.Player, m.Visualizer, m.LyricsData, m.LyricsScrollOffset, m.LyricsAutoScroll, m.Styles)
+		var newAutoScroll bool
+		mainView, newOffset, newAutoScroll = views.RenderPlaybackView(m.Width, mainH, m.Player, m.Visualizer, m.LyricsData, m.LyricsScrollOffset, m.LyricsAutoScroll, m.Styles)
 		m.LyricsScrollOffset = newOffset
+		m.LyricsAutoScroll = newAutoScroll
 
 	case components.ViewModeLibrary:
 		mainView = views.RenderLibraryView(m.Width, mainH, m.CurrentPath, m.LibraryItems, m.SelectionIndex, m.ScrollOffset, m.Styles)
@@ -1018,8 +1034,10 @@ func (m *AppModel) View() string {
 
 	case components.ViewModeLyrics:
 		var newOffset int
-		mainView, newOffset = views.RenderFullscreenLyricsView(m.Width, mainH, m.Player, m.LyricsData, m.LyricsScrollOffset, m.LyricsAutoScroll, m.Styles)
+		var newAutoScroll bool
+		mainView, newOffset, newAutoScroll = views.RenderFullscreenLyricsView(m.Width, mainH, m.Player, m.LyricsData, m.LyricsScrollOffset, m.LyricsAutoScroll, m.Styles)
 		m.LyricsScrollOffset = newOffset
+		m.LyricsAutoScroll = newAutoScroll
 
 	case components.ViewModeIntro:
 		mainView = views.RenderIntroView(m.Width, mainH, m.Styles)

@@ -79,7 +79,8 @@ func OverlayCenter(box string, termW, termH, boxW, boxH int) string {
 	for y := 0; y < termH; y++ {
 		if y >= startY && y < startY+len(boxLines) {
 			bLine := boxLines[y-startY]
-			out.WriteString(stringutil.SafeRepeat(" ", startX) + bLine)
+			out.WriteString(stringutil.SafeRepeat(" ", startX))
+			out.WriteString(bLine)
 		} else {
 			out.WriteString(stringutil.SafeRepeat(" ", termW))
 		}

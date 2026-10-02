@@ -8,8 +8,8 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/mattn/go-runewidth"
 )
 
 // FormatDuration formats seconds into "MM:SS" or "HH:MM:SS".
@@ -108,14 +108,39 @@ func SafeRepeat(s string, count int) string {
 	return strings.Repeat(s, count)
 }
 
+// CellWidth returns terminal display column width of string s, ignoring ANSI sequences
+// and accurately treating unicode combining marks (e.g. Devanagari vowel signs, diacritics).
+func CellWidth(s string) int {
+	clean := ansi.Strip(s)
+	w := 0
+	for _, r := range clean {
+		if unicode.IsMark(r) {
+			continue
+		}
+		if unicode.IsControl(r) {
+			continue
+		}
+		if r == '\u200D' || r == '\u200C' || r == '\uFEFF' || (r >= '\uFE00' && r <= '\uFE0F') || (r >= 0x1F3FB && r <= 0x1F3FF) {
+			continue
+		}
+		rw := runewidth.RuneWidth(r)
+		if rw > 0 {
+			w += rw
+		} else if unicode.IsPrint(r) {
+			w += 1
+		}
+	}
+	return w
+}
+
 // Width returns terminal display column width of string s, ignoring ANSI sequences.
 func Width(s string) int {
-	return lipgloss.Width(s)
+	return CellWidth(s)
 }
 
 // PadRight pads s with spaces so its terminal display width is at least targetW.
 func PadRight(s string, targetW int) string {
-	w := lipgloss.Width(s)
+	w := Width(s)
 	if w >= targetW {
 		return s
 	}
@@ -124,7 +149,7 @@ func PadRight(s string, targetW int) string {
 
 // PadCenter centers s within targetW.
 func PadCenter(s string, targetW int) string {
-	w := lipgloss.Width(s)
+	w := Width(s)
 	if w >= targetW {
 		return s
 	}
@@ -137,6 +162,9 @@ func PadCenter(s string, targetW int) string {
 func Truncate(s string, maxW int, tail string) string {
 	if maxW <= 0 {
 		return ""
+	}
+	if Width(s) <= maxW {
+		return s
 	}
 	return ansi.Truncate(s, maxW, tail)
 }

@@ -3,10 +3,9 @@ package visualizer
 import (
 	"math"
 	"vibe-fi/internal/player"
-	"vibe-fi/internal/tui/theme"
 )
 
-func (v *Visualizer) renderCavaWave(drawW, drawH int, p player.AudioPlayer, pos float64, vol float32, stats player.AudioLevelStats, styles theme.Styles) []string {
+func (v *Visualizer) renderCavaWave(drawW, drawH int, p player.AudioPlayer, pos float64, vol float32, stats player.AudioLevelStats) []string {
 	isActive := p.IsPlaying() && !p.IsPaused() && !p.IsIdle() && !p.IsLoading()
 	maxSubLevels := float32(drawH * 8)
 
@@ -28,9 +27,6 @@ func (v *Visualizer) renderCavaWave(drawW, drawH int, p player.AudioPlayer, pos 
 
 	if len(v.cavaBars) != numBars {
 		v.cavaBars = make([]float32, numBars)
-		v.cavaPeaks = make([]float32, numBars)
-		v.cavaHold = make([]int, numBars)
-		v.cavaFall = make([]float32, numBars)
 	}
 
 	liveRMS := float32(0.35)
@@ -128,40 +124,12 @@ func (v *Visualizer) renderCavaWave(drawW, drawH int, p player.AudioPlayer, pos 
 			} else {
 				v.cavaBars[i] -= (v.cavaBars[i] - target) * decaySpeed
 			}
-
-			if v.cavaBars[i] >= v.cavaPeaks[i] {
-				v.cavaPeaks[i] = v.cavaBars[i]
-				holdCount := 4
-				if stats.Valid && livePeak < 0.35 {
-					holdCount = 2
-				}
-				v.cavaHold[i] = holdCount
-				v.cavaFall[i] = 0.0
-			} else {
-				if v.cavaHold[i] > 0 {
-					v.cavaHold[i]--
-				} else {
-					step := float32(0.50)
-					if stats.Valid && livePeak < 0.35 {
-						step = 0.35
-					}
-					v.cavaFall[i] += step
-					v.cavaPeaks[i] -= v.cavaFall[i]
-					if v.cavaPeaks[i] < v.cavaBars[i] {
-						v.cavaPeaks[i] = v.cavaBars[i]
-					}
-				}
-			}
 		}
 	} else {
 		for i := 0; i < numBars; i++ {
 			v.cavaBars[i] *= 0.85
-			v.cavaPeaks[i] *= 0.85
 			if v.cavaBars[i] < 0.5 {
 				v.cavaBars[i] = 0.0
-			}
-			if v.cavaPeaks[i] < 0.5 {
-				v.cavaPeaks[i] = 0.0
 			}
 		}
 	}
@@ -172,13 +140,11 @@ func (v *Visualizer) renderCavaWave(drawW, drawH int, p player.AudioPlayer, pos 
 	fullBase := v.cachedBlocks.FullBase
 	fullMid := v.cachedBlocks.FullMid
 	fullHigh := v.cachedBlocks.FullHigh
-	peakChar := v.cachedBlocks.Peak
 
 	for i := 0; i < numBars; i++ {
 		val := int(v.cavaBars[i])
 		fullCells := val / 8
 		rem := val % 8
-		peakCell := int(v.cavaPeaks[i]) / 8
 		barX := startX + i*slotW
 
 		for y := 0; y < drawH; y++ {
@@ -192,9 +158,10 @@ func (v *Visualizer) renderCavaWave(drawW, drawH int, p player.AudioPlayer, pos 
 
 			if y < fullCells {
 				char := fullBase
-				if tier == 1 {
+				switch tier {
+				case 1:
 					char = fullMid
-				} else if tier == 2 {
+				case 2:
 					char = fullHigh
 				}
 				for k := 0; k < barW && (barX+k) < drawW; k++ {
@@ -202,17 +169,14 @@ func (v *Visualizer) renderCavaWave(drawW, drawH int, p player.AudioPlayer, pos 
 				}
 			} else if y == fullCells && rem > 0 {
 				char := v.cachedBlocks.Base[rem]
-				if tier == 1 {
+				switch tier {
+				case 1:
 					char = v.cachedBlocks.Mid[rem]
-				} else if tier == 2 {
+				case 2:
 					char = v.cachedBlocks.High[rem]
 				}
 				for k := 0; k < barW && (barX+k) < drawW; k++ {
 					grid[drawY][barX+k] = char
-				}
-			} else if y == peakCell && peakCell > fullCells && peakCell < drawH {
-				for k := 0; k < barW && (barX+k) < drawW; k++ {
-					grid[drawY][barX+k] = peakChar
 				}
 			}
 		}
