@@ -25,6 +25,7 @@ echo ""
 # Parse Command-Line Options
 FORCE_BUILD=false
 GLOBAL_INSTALL=false
+UNINSTALL=false
 VERSION="latest"
 
 while [[ $# -gt 0 ]]; do
@@ -35,6 +36,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --global|--system|-g)
             GLOBAL_INSTALL=true
+            shift
+            ;;
+        --uninstall|-u)
+            UNINSTALL=true
             shift
             ;;
         --version|-v)
@@ -85,6 +90,18 @@ if [ "$GLOBAL_INSTALL" = true ] || [ "$EUID" -eq 0 ]; then
 else
     TARGET_DIR="${HOME}/.local/bin"
 fi
+
+if [ "$UNINSTALL" = true ]; then
+    echo -e "${YELLOW}Uninstalling Vibe-Fi...${NC}"
+    rm -f "${TARGET_DIR}/vibe"
+    rm -f "${HOME}/.local/bin/vibe" 2>/dev/null || true
+    echo -e "${GREEN}[✔] Removed vibe executable.${NC}"
+    echo ""
+    echo -e "To purge user config, playlists, and cache, run:"
+    echo -e "  ${CYAN}rm -rf ~/.vibe-fi${NC}"
+    exit 0
+fi
+
 mkdir -p "${TARGET_DIR}"
 
 TMP_DIR="$(mktemp -d)"
