@@ -68,7 +68,7 @@ func RenderHelpBar(width int, mode ViewMode, msg string, autoplay bool, styles t
 		case ViewModeQueue:
 			text = "[ENTER] Play Selected [D] Remove [ESC] Back"
 		case ViewModeLyrics:
-			text = "[UP/DOWN] Scroll Lyrics [ESC] Back"
+			text = "[A] Auto-Scroll [UP/DOWN] Scroll [ESC] Back"
 		case ViewModeIntro:
 			text = "[L] Library [S] Search [P] Playlists [R] Resume [ENTER] Library [ESC] Quit"
 		}

@@ -41,7 +41,9 @@ func StartServer(p player.AudioPlayer, prog *tea.Program) *Server {
 	playerIface := &PlayerInterface{srv: srv}
 
 	_ = conn.Export(root, "/org/mpris/MediaPlayer2", "org.mpris.MediaPlayer2")
-	_ = conn.Export(playerIface, "/org/mpris/MediaPlayer2", "org.mpris.MediaPlayer2.Player")
+	_ = conn.ExportWithMap(playerIface, map[string]string{
+		"MprisSeek": "Seek",
+	}, "/org/mpris/MediaPlayer2", "org.mpris.MediaPlayer2.Player")
 
 	return srv
 }
@@ -137,7 +139,7 @@ func (p *PlayerInterface) Play() *dbus.Error {
 	return nil
 }
 
-func (p *PlayerInterface) Seek(offsetMicrosec int64) *dbus.Error {
+func (p *PlayerInterface) MprisSeek(offsetMicrosec int64) *dbus.Error {
 	if p.srv == nil || p.srv.player == nil {
 		return nil
 	}

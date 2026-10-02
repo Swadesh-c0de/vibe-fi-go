@@ -9,7 +9,6 @@ type Styles struct {
 	Theme Theme
 
 	BorderLine  lipgloss.Style
-	BorderBox   lipgloss.Style
 	BorderTitle lipgloss.Style
 
 	// Pre-rendered border glyphs to eliminate frame allocations
@@ -20,12 +19,10 @@ type Styles struct {
 	BorderBL string
 	BorderBR string
 
-	StatusBar   lipgloss.Style
 	StatusTitle lipgloss.Style
 	ProgressBar lipgloss.Style
 	StatusDim   lipgloss.Style
 
-	HelpBar   lipgloss.Style
 	HelpAlert lipgloss.Style
 	HelpKey   lipgloss.Style
 
@@ -36,9 +33,7 @@ type Styles struct {
 	VizBase lipgloss.Style
 	VizMid  lipgloss.Style
 	VizHigh lipgloss.Style
-	VizPeak lipgloss.Style
 
-	ModalBox   lipgloss.Style
 	ModalBtn   lipgloss.Style
 	ModalBtnOn lipgloss.Style
 }
@@ -52,7 +47,6 @@ func MakeStyles(t Theme) Styles {
 		Theme: t,
 
 		BorderLine:  lineStyle,
-		BorderBox:   lineStyle,
 		BorderTitle: lipgloss.NewStyle().Bold(true).Foreground(t.BorderColor),
 
 		BorderV:  lineStyle.Render("│"),
@@ -62,12 +56,10 @@ func MakeStyles(t Theme) Styles {
 		BorderBL: lineStyle.Render("└"),
 		BorderBR: lineStyle.Render("┘"),
 
-		StatusBar:   lineStyle,
 		StatusTitle: lipgloss.NewStyle().Bold(true).Foreground(t.TextColor),
 		ProgressBar: lipgloss.NewStyle().Foreground(t.ProgressColor),
 		StatusDim:   lipgloss.NewStyle().Faint(true).Foreground(t.TextColor),
 
-		HelpBar:   lineStyle,
 		HelpAlert: lipgloss.NewStyle().Bold(true).Foreground(t.AlertColor),
 		HelpKey:   textStyle,
 
@@ -78,9 +70,7 @@ func MakeStyles(t Theme) Styles {
 		VizBase: lipgloss.NewStyle().Foreground(t.VizBaseColor),
 		VizMid:  lipgloss.NewStyle().Foreground(t.VizMidColor),
 		VizHigh: lipgloss.NewStyle().Bold(true).Foreground(t.VizHighColor),
-		VizPeak: lipgloss.NewStyle().Bold(true).Foreground(t.VizPeakColor),
 
-		ModalBox:   lineStyle,
 		ModalBtn:   lipgloss.NewStyle().Foreground(t.BorderColor),
 		ModalBtnOn: lipgloss.NewStyle().Bold(true).Foreground(t.SelectedFgColor).Background(t.SelectedBgColor),
 	}

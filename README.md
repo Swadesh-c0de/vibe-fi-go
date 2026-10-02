@@ -48,6 +48,7 @@
 | <kbd>T</kbd> | Switch theme (`Midnight` &rarr; `Nord` &rarr; `Matrix` &rarr; `HyDE` &rarr; `Gruvbox` &rarr; `Slate`) |
 | <kbd>O</kbd> | Toggle autoplay (`ON` / `OFF`) |
 | <kbd>R</kbd> | Replay track (or restore session from home screen) |
+| <kbd>A</kbd> | Toggle / resume lyrics auto-scroll |
 | <kbd>&uarr;</kbd> / <kbd>&darr;</kbd> | Scroll synced lyrics manually |
 | <kbd>ESC</kbd> / <kbd>Q</kbd> | Exit player (prompts confirmation) |
 

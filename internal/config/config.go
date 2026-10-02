@@ -8,7 +8,7 @@ import (
 const (
 	Version           = "1.1.3"
 	DefaultTheme      = "Midnight"
-	DefaultVisualizer = 0 // 0: Cava Wave, 1: Neon Flame, 2: Stereo Bars
+	DefaultVisualizer = 0 // Cava Wave
 )
 
 // GetVibeDir returns ~/.vibe-fi, creating it if it doesn't exist.

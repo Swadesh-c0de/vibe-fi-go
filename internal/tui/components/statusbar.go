@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 	"vibe-fi/internal/player"
 	"vibe-fi/internal/tui/theme"
@@ -48,10 +47,10 @@ func RenderStatusBar(width int, p player.AudioPlayer, styles theme.Styles) strin
 		}
 	}
 
-	if lipgloss.Width(title) > innerW-2 {
+	if stringutil.Width(title) > innerW-2 {
 		title = ansi.Truncate(title, innerW-5, "...")
 	}
-	tWidth := lipgloss.Width(title)
+	tWidth := stringutil.Width(title)
 	titleLeft := (innerW - tWidth) / 2
 	titleRight := innerW - titleLeft - tWidth
 	line1 := stringutil.SafeRepeat(" ", titleLeft) + styles.StatusTitle.Render(title) + stringutil.SafeRepeat(" ", titleRight)
@@ -78,13 +77,13 @@ func RenderStatusBar(width int, p player.AudioPlayer, styles theme.Styles) strin
 		line2 = stringutil.SafeRepeat(" ", barPad) + barContent + stringutil.SafeRepeat(" ", rightPad)
 	} else if p.IsLoading() {
 		hint := "Connecting to audio stream..."
-		hWidth := lipgloss.Width(hint)
+		hWidth := stringutil.Width(hint)
 		hPad := (innerW - hWidth) / 2
 		rPad := innerW - hPad - hWidth
 		line2 = stringutil.SafeRepeat(" ", hPad) + styles.ProgressBar.Render(hint) + stringutil.SafeRepeat(" ", rPad)
 	} else if p.IsBuffering() {
 		hint := "Buffering audio cache..."
-		hWidth := lipgloss.Width(hint)
+		hWidth := stringutil.Width(hint)
 		hPad := (innerW - hWidth) / 2
 		rPad := innerW - hPad - hWidth
 		line2 = stringutil.SafeRepeat(" ", hPad) + styles.ProgressBar.Render(hint) + stringutil.SafeRepeat(" ", rPad)
@@ -96,7 +95,7 @@ func RenderStatusBar(width int, p player.AudioPlayer, styles theme.Styles) strin
 	timeStr := stringutil.FormatDuration(pos) + " / " + stringutil.FormatDuration(dur)
 	volStr := fmt.Sprintf("Vol: %d%%", p.Volume())
 
-	spaceCount := innerW - 2 - lipgloss.Width(timeStr) - lipgloss.Width(volStr)
+	spaceCount := innerW - 2 - stringutil.Width(timeStr) - stringutil.Width(volStr)
 	if spaceCount < 1 {
 		spaceCount = 1
 	}

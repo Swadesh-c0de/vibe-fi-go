@@ -18,7 +18,7 @@ BOLD='\033[1m'
 NC='\033[0m' # No Color
 
 echo -e "${CYAN}======================================${NC}"
-echo -e "${CYAN}${BOLD}      Vibe-Fi 🎵 (Go Edition)${NC}"
+echo -e "${CYAN}${BOLD}       Vibe-Fi (Go Edition)${NC}"
 echo -e "${CYAN}======================================${NC}"
 echo ""
 
