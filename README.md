@@ -48,8 +48,10 @@
 | <kbd>T</kbd> | Switch theme (`Midnight` &rarr; `Nord` &rarr; `Matrix` &rarr; `HyDE` &rarr; `Gruvbox` &rarr; `Slate`) |
 | <kbd>O</kbd> | Toggle autoplay (`ON` / `OFF`) |
 | <kbd>R</kbd> | Replay track (or restore session from home screen) |
+| <kbd>V</kbd> | Toggle playback layout (`Split` &rarr; `Full Visualizer` &rarr; `Full Lyrics`) |
 | <kbd>A</kbd> | Toggle / resume lyrics auto-scroll |
 | <kbd>&uarr;</kbd> / <kbd>&darr;</kbd> | Scroll synced lyrics manually |
+| <kbd>?</kbd> / <kbd>F1</kbd> | Interactive keyboard shortcut cheat-sheet |
 | <kbd>ESC</kbd> / <kbd>Q</kbd> | Exit player (prompts confirmation) |
 
 ---

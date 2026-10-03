@@ -12,31 +12,54 @@ import (
 	"vibe-fi/internal/utils/stringutil"
 )
 
-// RenderPlaybackView renders the dual Visualizer (40%) and Lyrics (60%) layout.
-func RenderPlaybackView(width, height int, p player.AudioPlayer, viz *visualizer.Visualizer, lyricsData lyrics.LyricsData, lyricsScrollOffset int, autoScroll bool, styles theme.Styles) (string, int, bool) {
-	if height < 6 {
-		height = 6
+// PlaybackLayout defines the layout split of the playback view.
+type PlaybackLayout int
+
+const (
+	LayoutSplit          PlaybackLayout = iota // 40% Visualizer, 60% Lyrics (Default)
+	LayoutFullVisualizer                       // 100% Visualizer
+	LayoutFullLyrics                           // 100% Lyrics
+)
+
+// RenderPlaybackView renders the playback view according to the active PlaybackLayout.
+func RenderPlaybackView(width, height int, layout PlaybackLayout, p player.AudioPlayer, viz *visualizer.Visualizer, lyricsData lyrics.LyricsData, lyricsScrollOffset int, autoScroll bool, styles theme.Styles) (string, int, bool) {
+	if height < 4 {
+		height = 4
 	}
 
-	vizH := int(float64(height) * 0.40)
-	if vizH < 3 {
-		vizH = 3
+	switch layout {
+	case LayoutFullVisualizer:
+		vizHeader := viz.RenderHeader(p)
+		vizBody := viz.RenderBody(width-2, height-2, p, styles)
+		vizBox := components.RenderBoxWithTitle(vizHeader, vizBody, width, height, styles)
+		return vizBox, lyricsScrollOffset, autoScroll
+
+	case LayoutFullLyrics:
+		lyricsLines, newOffset, newAutoScroll := renderLyricsBody(width-2, height-2, p, lyricsData, lyricsScrollOffset, autoScroll, styles)
+		lyricsBox := components.RenderBoxWithTitle("LYRICS", lyricsLines, width, height, styles)
+		return lyricsBox, newOffset, newAutoScroll
+
+	default: // LayoutSplit
+		vizH := int(float64(height) * 0.40)
+		if vizH < 3 {
+			vizH = 3
+		}
+		lyricsH := height - vizH
+		if lyricsH < 3 {
+			lyricsH = 3
+		}
+
+		// Top: Visualizer Box
+		vizHeader := viz.RenderHeader(p)
+		vizBody := viz.RenderBody(width-2, vizH-2, p, styles)
+		vizBox := components.RenderBoxWithTitle(vizHeader, vizBody, width, vizH, styles)
+
+		// Bottom: Lyrics Box
+		lyricsLines, newOffset, newAutoScroll := renderLyricsBody(width-2, lyricsH-2, p, lyricsData, lyricsScrollOffset, autoScroll, styles)
+		lyricsBox := components.RenderBoxWithTitle("LYRICS", lyricsLines, width, lyricsH, styles)
+
+		return vizBox + "\n" + lyricsBox, newOffset, newAutoScroll
 	}
-	lyricsH := height - vizH
-	if lyricsH < 3 {
-		lyricsH = 3
-	}
-
-	// Top: Visualizer Box
-	vizHeader := viz.RenderHeader(p)
-	vizBody := viz.RenderBody(width-2, vizH-2, p, styles)
-	vizBox := components.RenderBoxWithTitle(vizHeader, vizBody, width, vizH, styles)
-
-	// Bottom: Lyrics Box
-	lyricsLines, newOffset, newAutoScroll := renderLyricsBody(width-2, lyricsH-2, p, lyricsData, lyricsScrollOffset, autoScroll, styles)
-	lyricsBox := components.RenderBoxWithTitle("LYRICS", lyricsLines, width, lyricsH, styles)
-
-	return vizBox + "\n" + lyricsBox, newOffset, newAutoScroll
 }
 
 func renderLyricsBody(textW, textH int, p player.AudioPlayer, data lyrics.LyricsData, offset int, autoScroll bool, styles theme.Styles) ([]string, int, bool) {
@@ -96,6 +119,16 @@ func renderLyricsBody(textW, textH int, p player.AudioPlayer, data lyrics.Lyrics
 			styledText := lineText
 			if isActive {
 				styledText = styles.ActiveSong.Render(lineText)
+			} else {
+				dist := idx - activeIdx
+				if dist < 0 {
+					dist = -dist
+				}
+				if dist <= 1 {
+					styledText = styles.StatusTitle.Render(lineText)
+				} else {
+					styledText = styles.StatusDim.Render(lineText)
+				}
 			}
 
 			out[i] = stringutil.SafeRepeat(" ", leftPad) + styledText

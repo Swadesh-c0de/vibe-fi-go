@@ -80,6 +80,10 @@ type AppModel struct {
 	InputPromptText     string
 	InputPromptCallback func(text string) tea.Cmd
 
+	ShowHelpModal bool
+
+	PlaybackLayout views.PlaybackLayout
+
 	SongToMoveIndex  int
 	SongToMoveOrigin string
 	SongToAdd        playlist.PlaylistSong
@@ -106,6 +110,7 @@ func NewAppModel(p player.AudioPlayer) *AppModel {
 		CurrentPath:          homeDir,
 		LibraryItems:         items,
 		QueueIndex:           -1,
+		PlaybackLayout:       views.LayoutSplit,
 		LyricsAutoScroll:     true,
 		ConfirmQuitSelection: 1, // Default NO
 	}
@@ -440,6 +445,10 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.ShowInputPrompt {
 			return m, m.handleInputPromptKey(msg)
 		}
+		if m.ShowHelpModal {
+			m.ShowHelpModal = false
+			return m, nil
+		}
 
 		// View Key Handling
 		return m, m.handleKey(msg)
@@ -556,6 +565,12 @@ func (m *AppModel) handleKey(msg tea.KeyMsg) tea.Cmd {
 
 	keyStr := msg.String()
 
+	// Global help cheat-sheet (? or F1) across any non-text-input screen
+	if m.Mode != components.ViewModeSearchInput && (keyStr == "?" || keyStr == "f1") {
+		m.ShowHelpModal = true
+		return nil
+	}
+
 	// Global Hotkeys when in Playback mode
 	if m.Mode == components.ViewModePlayback {
 		switch keyStr {
@@ -643,6 +658,18 @@ func (m *AppModel) handleKey(msg tea.KeyMsg) tea.Cmd {
 				autoStr = "ON"
 			}
 			return m.ShowStatus("Autoplay: " + autoStr)
+		case "v", "V":
+			switch m.PlaybackLayout {
+			case views.LayoutSplit:
+				m.PlaybackLayout = views.LayoutFullVisualizer
+				return m.ShowStatus("Layout: Cinema Visualizer")
+			case views.LayoutFullVisualizer:
+				m.PlaybackLayout = views.LayoutFullLyrics
+				return m.ShowStatus("Layout: Fullscreen Lyrics")
+			default:
+				m.PlaybackLayout = views.LayoutSplit
+				return m.ShowStatus("Layout: Split (Visualizer + Lyrics)")
+			}
 		case "t", "T":
 			m.Theme = theme.CycleTheme(m.Theme.Name)
 			m.Styles = theme.MakeStyles(m.Theme)
@@ -1078,6 +1105,9 @@ func (m *AppModel) View() string {
 	if m.ShowInputPrompt {
 		return components.RenderInputPrompt(m.Width, m.Height, m.InputPromptTitle, m.InputPromptText, m.Styles)
 	}
+	if m.ShowHelpModal {
+		return components.RenderHelpModal(m.Width, m.Height, m.Styles)
+	}
 
 	// Layout breakdown:
 	// statusH = 5
@@ -1095,7 +1125,7 @@ func (m *AppModel) View() string {
 	case components.ViewModePlayback:
 		var newOffset int
 		var newAutoScroll bool
-		mainView, newOffset, newAutoScroll = views.RenderPlaybackView(m.Width, mainH, m.Player, m.Visualizer, m.LyricsData, m.LyricsScrollOffset, m.LyricsAutoScroll, m.Styles)
+		mainView, newOffset, newAutoScroll = views.RenderPlaybackView(m.Width, mainH, m.PlaybackLayout, m.Player, m.Visualizer, m.LyricsData, m.LyricsScrollOffset, m.LyricsAutoScroll, m.Styles)
 		m.LyricsScrollOffset = newOffset
 		m.LyricsAutoScroll = newAutoScroll
 

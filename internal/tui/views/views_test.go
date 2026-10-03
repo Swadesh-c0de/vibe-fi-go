@@ -26,7 +26,7 @@ func TestAllViewsRendering(t *testing.T) {
 	w := 80
 	h := 20
 
-	// 1. Playback View
+	// 1. Playback View (Split, Full Visualizer, Full Lyrics)
 	lyricsData := lyrics.LyricsData{
 		HasSynced: true,
 		SyncedLyrics: []lyrics.LyricLine{
@@ -35,10 +35,22 @@ func TestAllViewsRendering(t *testing.T) {
 			{Timestamp: 10.0, Text: "Third line continuing"},
 		},
 	}
-	pb, _, _ := RenderPlaybackView(w, h, mock, viz, lyricsData, 0, true, styles)
-	lines := strings.Split(pb, "\n")
-	if len(lines) != h {
-		t.Errorf("PlaybackView: expected %d lines, got %d", h, len(lines))
+	pbSplit, _, _ := RenderPlaybackView(w, h, LayoutSplit, mock, viz, lyricsData, 0, true, styles)
+	linesSplit := strings.Split(pbSplit, "\n")
+	if len(linesSplit) != h {
+		t.Errorf("PlaybackView Split: expected %d lines, got %d", h, len(linesSplit))
+	}
+
+	pbViz, _, _ := RenderPlaybackView(w, h, LayoutFullVisualizer, mock, viz, lyricsData, 0, true, styles)
+	linesViz := strings.Split(pbViz, "\n")
+	if len(linesViz) != h {
+		t.Errorf("PlaybackView FullVisualizer: expected %d lines, got %d", h, len(linesViz))
+	}
+
+	pbLyr, _, _ := RenderPlaybackView(w, h, LayoutFullLyrics, mock, viz, lyricsData, 0, true, styles)
+	linesLyr := strings.Split(pbLyr, "\n")
+	if len(linesLyr) != h {
+		t.Errorf("PlaybackView FullLyrics: expected %d lines, got %d", h, len(linesLyr))
 	}
 
 	// 2. Library View

@@ -64,3 +64,38 @@ func TestRenderHelpBar(t *testing.T) {
 		}
 	}
 }
+
+func TestRenderModals(t *testing.T) {
+	th := theme.GetTheme("Midnight")
+	styles := theme.MakeStyles(th)
+
+	sizes := [][2]int{
+		{80, 24},
+		{100, 30},
+		{60, 18},
+		{50, 12},
+	}
+
+	for _, sz := range sizes {
+		w, h := sz[0], sz[1]
+
+		// 1. Confirm Quit
+		cq := RenderConfirmQuit(w, h, 0, styles)
+		if len(strings.Split(cq, "\n")) != h {
+			t.Errorf("RenderConfirmQuit (w=%d, h=%d): got %d lines", w, h, len(strings.Split(cq, "\n")))
+		}
+
+		// 2. Input Prompt
+		ip := RenderInputPrompt(w, h, "Search", "lofi vibes", styles)
+		if len(strings.Split(ip, "\n")) != h {
+			t.Errorf("RenderInputPrompt (w=%d, h=%d): got %d lines", w, h, len(strings.Split(ip, "\n")))
+		}
+
+		// 3. Help Modal
+		hm := RenderHelpModal(w, h, styles)
+		if len(strings.Split(hm, "\n")) != h {
+			t.Errorf("RenderHelpModal (w=%d, h=%d): got %d lines", w, h, len(strings.Split(hm, "\n")))
+		}
+	}
+}
+
