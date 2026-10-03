@@ -32,7 +32,7 @@ func DefaultState() SessionState {
 		Index:      -1,
 		Theme:      DefaultTheme,
 		Visualizer: DefaultVisualizer,
-		Autoplay:   false,
+		Autoplay:   true,
 	}
 }
 

@@ -18,11 +18,12 @@ type PlaylistBrowserState struct {
 	PreviewSongs  []playlist.PlaylistSong
 	SelectedIndex int
 	ScrollOffset  int
+	FilterQuery   string
 }
 
 // RenderPlaylistsBrowserState renders the playlists browser using a structured state.
 func RenderPlaylistsBrowserState(width, height int, state PlaylistBrowserState, styles theme.Styles) string {
-	return RenderPlaylistsBrowser(width, height, state.Playlists, state.PreviewSongs, state.SelectedIndex, state.ScrollOffset, styles)
+	return RenderPlaylistsBrowserFiltered(width, height, state.Playlists, state.PreviewSongs, state.SelectedIndex, state.ScrollOffset, state.FilterQuery, styles)
 }
 
 // PlaylistSongsState encapsulates playlist song browsing state.
@@ -31,15 +32,21 @@ type PlaylistSongsState struct {
 	Songs         []playlist.PlaylistSong
 	SelectedIndex int
 	ScrollOffset  int
+	FilterQuery   string
 }
 
 // RenderPlaylistSongsState renders the songs within a playlist using a structured state.
 func RenderPlaylistSongsState(width, height int, state PlaylistSongsState, styles theme.Styles) string {
-	return RenderPlaylistSongsView(width, height, state.PlaylistName, state.Songs, state.SelectedIndex, state.ScrollOffset, styles)
+	return RenderPlaylistSongsFilteredView(width, height, state.PlaylistName, state.Songs, state.SelectedIndex, state.ScrollOffset, state.FilterQuery, styles)
 }
 
 // RenderPlaylistsBrowser renders the split view (playlists list on left, preview on right).
 func RenderPlaylistsBrowser(width, height int, playlists []playlist.Playlist, previewSongs []playlist.PlaylistSong, selectedIndex, scrollOffset int, styles theme.Styles) string {
+	return RenderPlaylistsBrowserFiltered(width, height, playlists, previewSongs, selectedIndex, scrollOffset, "", styles)
+}
+
+// RenderPlaylistsBrowserFiltered renders the split view with an optional filter query.
+func RenderPlaylistsBrowserFiltered(width, height int, playlists []playlist.Playlist, previewSongs []playlist.PlaylistSong, selectedIndex, scrollOffset int, filterQuery string, styles theme.Styles) string {
 	innerH := height - 2
 	innerW := width - 2
 
@@ -50,9 +57,16 @@ func RenderPlaylistsBrowser(width, height int, playlists []playlist.Playlist, pr
 
 	if len(playlists) == 0 {
 		msg := "No playlists found. Press [N] to create one."
+		if filterQuery != "" {
+			msg = "No playlists matching: " + filterQuery
+		}
 		pad := (innerW - lipgloss.Width(msg)) / 2
 		lines[innerH/2] = stringutil.SafeRepeat(" ", pad) + styles.StatusDim.Render(msg)
-		return components.RenderBoxWithTitle("PLAYLISTS", lines, width, height, styles)
+		title := "PLAYLISTS"
+		if filterQuery != "" {
+			title = fmt.Sprintf("PLAYLISTS [/ %s]", filterQuery)
+		}
+		return components.RenderBoxWithTitle(title, lines, width, height, styles)
 	}
 
 	leftW := int(float64(innerW) * 0.35)
@@ -147,11 +161,20 @@ func RenderPlaylistsBrowser(width, height int, playlists []playlist.Playlist, pr
 		lines[i+1] = leftCol + styles.BorderLine.Render("│") + rightCol
 	}
 
-	return components.RenderBoxWithTitle("PLAYLISTS", lines, width, height, styles)
+	title := "PLAYLISTS"
+	if filterQuery != "" {
+		title = fmt.Sprintf("PLAYLISTS [/ %s]", filterQuery)
+	}
+	return components.RenderBoxWithTitle(title, lines, width, height, styles)
 }
 
-// RenderPlaylistSongsView renders all tracks in an open playlist.
+// RenderPlaylistSongsView renders all tracks in an open playlist without filter.
 func RenderPlaylistSongsView(width, height int, playlistName string, songs []playlist.PlaylistSong, selectedIndex, scrollOffset int, styles theme.Styles) string {
+	return RenderPlaylistSongsFilteredView(width, height, playlistName, songs, selectedIndex, scrollOffset, "", styles)
+}
+
+// RenderPlaylistSongsFilteredView renders all tracks in an open playlist with an optional filter query.
+func RenderPlaylistSongsFilteredView(width, height int, playlistName string, songs []playlist.PlaylistSong, selectedIndex, scrollOffset int, filterQuery string, styles theme.Styles) string {
 	innerH := height - 2
 	innerW := width - 2
 
@@ -160,11 +183,19 @@ func RenderPlaylistSongsView(width, height int, playlistName string, songs []pla
 		lines[i] = strings.Repeat(" ", innerW)
 	}
 
+	title := "PLAYLIST: " + playlistName
+	if filterQuery != "" {
+		title = fmt.Sprintf("PLAYLIST: %s [/ %s]", playlistName, filterQuery)
+	}
+
 	if len(songs) == 0 {
 		msg := "Playlist is empty."
+		if filterQuery != "" {
+			msg = "No songs matching filter: " + filterQuery
+		}
 		pad := (innerW - lipgloss.Width(msg)) / 2
 		lines[innerH/2] = stringutil.SafeRepeat(" ", pad) + styles.StatusDim.Render(msg)
-		return components.RenderBoxWithTitle("PLAYLIST: "+playlistName, lines, width, height, styles)
+		return components.RenderBoxWithTitle(title, lines, width, height, styles)
 	}
 
 	maxTitleLen := innerW - 20
@@ -184,12 +215,12 @@ func RenderPlaylistSongsView(width, height int, playlistName string, songs []pla
 			break
 		}
 		s := songs[idx]
-		title := s.Title
-		if lipgloss.Width(title) > maxTitleLen {
-			title = ansi.Truncate(title, maxTitleLen, "...")
+		tStr := s.Title
+		if lipgloss.Width(tStr) > maxTitleLen {
+			tStr = ansi.Truncate(tStr, maxTitleLen, "...")
 		}
 
-		row := fmt.Sprintf(" %-4d %-*s %10s", idx+1, maxTitleLen, title, s.Duration)
+		row := fmt.Sprintf(" %-4d %-*s %10s", idx+1, maxTitleLen, tStr, s.Duration)
 		rPad := innerW - lipgloss.Width(row)
 		row += stringutil.SafeRepeat(" ", rPad)
 
@@ -200,7 +231,7 @@ func RenderPlaylistSongsView(width, height int, playlistName string, songs []pla
 		}
 	}
 
-	return components.RenderBoxWithTitle("PLAYLIST: "+playlistName, lines, width, height, styles)
+	return components.RenderBoxWithTitle(title, lines, width, height, styles)
 }
 
 // RenderPlaylistSelectDialog renders target playlist selection for adding or moving songs.

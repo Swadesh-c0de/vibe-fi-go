@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -75,6 +76,12 @@ type AppModel struct {
 	ShowConfirmQuit      bool
 	ConfirmQuitSelection int // 0: YES, 1: NO
 
+	ShowConfirmDialog      bool
+	ConfirmDialogTitle     string
+	ConfirmDialogPrompt    string
+	ConfirmDialogSelection int // 0: YES, 1: NO
+	ConfirmDialogCallback  func() tea.Cmd
+
 	ShowInputPrompt     bool
 	InputPromptTitle    string
 	InputPromptText     string
@@ -83,16 +90,38 @@ type AppModel struct {
 	ShowHelpModal  bool
 	PlaybackLayout views.PlaybackLayout
 
+	// In-view live filtering
+	FilterMode  bool
+	FilterQuery string
+
 	SongToMoveIndex  int
 	SongToMoveOrigin string
 	SongToAdd        playlist.PlaylistSong
+	PreviousMode     *components.ViewMode
 
 	Quitting bool
 }
 
 // NewAppModel creates a fully initialized AppModel.
 func NewAppModel(p player.AudioPlayer) *AppModel {
+	theme.InitThemes(config.GetVibeDir())
 	th := theme.GetTheme(config.DefaultTheme)
+	st, _ := config.LoadState()
+	if st.Theme != "" {
+		th = theme.GetTheme(st.Theme)
+	}
+
+	vol := st.Volume
+	if vol <= 0 {
+		vol = 100
+	}
+	if p != nil {
+		_ = p.SetVolume(vol)
+	}
+
+	pm := playlist.NewPlaylistManager()
+	pls := pm.ListPlaylists()
+
 	lib := library.NewLibrary()
 	homeDir := lib.GetHomeMusicDir()
 	items, _ := lib.ListDirectory(homeDir)
@@ -100,7 +129,8 @@ func NewAppModel(p player.AudioPlayer) *AppModel {
 	return &AppModel{
 		Player:               p,
 		Library:              lib,
-		PlaylistManager:      playlist.NewPlaylistManager(),
+		PlaylistManager:      pm,
+		Playlists:            pls,
 		LyricsManager:        lyrics.NewLyricsManager(),
 		Visualizer:           visualizer.NewVisualizer(),
 		EventBus:             eventbus.New(),
@@ -111,8 +141,11 @@ func NewAppModel(p player.AudioPlayer) *AppModel {
 		LibraryItems:         items,
 		QueueIndex:           -1,
 		PlaybackLayout:       views.LayoutSplit,
+		Autoplay:             st.Autoplay,
 		LyricsAutoScroll:     true,
 		ConfirmQuitSelection: 1, // Default NO
+		LastPlayedPath:       st.Path,
+		CurrentLyricsTitle:   st.Title,
 	}
 }
 
@@ -146,20 +179,60 @@ func (m *AppModel) SetMode(newMode components.ViewMode) {
 	m.Mode = newMode
 	m.SelectionIndex = 0
 	m.ScrollOffset = 0
+	m.FilterMode = false
+	m.FilterQuery = ""
 	if m.Mode == components.ViewModePlaylistBrowser {
 		m.Playlists = m.PlaylistManager.ListPlaylists()
 		m.updatePreviewSongs()
 	}
 }
 
+func (m *AppModel) currentTrackForPlaylist() (playlist.PlaylistSong, bool) {
+	if m.QueueIndex >= 0 && m.QueueIndex < len(m.PlayQueue) {
+		song := m.PlayQueue[m.QueueIndex]
+		if song.Title != "" || song.URL != "" {
+			return song, true
+		}
+	}
+	if m.LastPlayedPath != "" {
+		title := m.CurrentLyricsTitle
+		if title == "" {
+			title = filepath.Base(m.LastPlayedPath)
+		}
+		dur := ""
+		if m.Player != nil && m.Player.Duration() > 0 {
+			dur = stringutil.FormatDuration(m.Player.Duration())
+		}
+		return playlist.PlaylistSong{
+			Title:    title,
+			URL:      m.LastPlayedPath,
+			Duration: dur,
+		}, true
+	}
+	return playlist.PlaylistSong{}, false
+}
+
 func (m *AppModel) saveCurrentState() {
+	var pos float64
+	vol := 100
+	if m.Player != nil {
+		pos = m.Player.Position()
+		vol = m.Player.Volume()
+		if vol <= 0 {
+			vol = 100
+		}
+	}
+	themeName := config.DefaultTheme
+	if m.Theme.Name != "" {
+		themeName = m.Theme.Name
+	}
 	st := config.SessionState{
 		Path:       m.LastPlayedPath,
 		Title:      m.CurrentLyricsTitle,
-		Position:   m.Player.Position(),
-		Volume:     m.Player.Volume(),
+		Position:   pos,
+		Volume:     vol,
 		Index:      m.QueueIndex,
-		Theme:      m.Theme.Name,
+		Theme:      themeName,
 		Visualizer: 0,
 		Autoplay:   m.Autoplay,
 	}
@@ -181,8 +254,12 @@ func (m *AppModel) LoadState() tea.Cmd {
 		m.Styles = theme.MakeStyles(m.Theme)
 	}
 	m.Autoplay = st.Autoplay
-	if st.Volume > 0 {
-		_ = m.Player.SetVolume(st.Volume)
+	vol := st.Volume
+	if vol <= 0 {
+		vol = 100
+	}
+	if m.Player != nil {
+		_ = m.Player.SetVolume(vol)
 	}
 
 	if st.Path != "" {
@@ -245,6 +322,15 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Poll libmpv events
 		m.Player.PollEvents()
+
+		// Background prefetch next track in queue as current track nears completion (>75% or <25s remaining)
+		if m.Player.IsPlaying() {
+			pos := m.Player.Position()
+			dur := m.Player.Duration()
+			if dur > 0 && (dur-pos < 25 || pos/dur > 0.75) {
+				m.prefetchUpcomingTracks()
+			}
+		}
 
 		// Natural EOF check for autoplay
 		if m.Player.ConsumeTrackFinished() {
@@ -323,6 +409,9 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Modal Key Handling
 		if m.ShowConfirmQuit {
 			return m, m.handleConfirmQuitKey(msg)
+		}
+		if m.ShowConfirmDialog {
+			return m, m.handleConfirmDialogKey(msg)
 		}
 		if m.ShowInputPrompt {
 			return m, m.handleInputPromptKey(msg)
@@ -408,6 +497,36 @@ func (m *AppModel) handleConfirmQuitKey(msg tea.KeyMsg) tea.Cmd {
 	return nil
 }
 
+func (m *AppModel) handleConfirmDialogKey(msg tea.KeyMsg) tea.Cmd {
+	switch msg.String() {
+	case "left", "right", "h", "l", "tab":
+		m.ConfirmDialogSelection = 1 - m.ConfirmDialogSelection
+	case "enter":
+		if m.ConfirmDialogSelection == 0 { // YES
+			m.ShowConfirmDialog = false
+			if m.ConfirmDialogCallback != nil {
+				cb := m.ConfirmDialogCallback
+				m.ConfirmDialogCallback = nil
+				return cb()
+			}
+			return nil
+		}
+		m.ShowConfirmDialog = false
+		m.ConfirmDialogCallback = nil
+	case "esc", "n", "N":
+		m.ShowConfirmDialog = false
+		m.ConfirmDialogCallback = nil
+	case "y", "Y":
+		m.ShowConfirmDialog = false
+		if m.ConfirmDialogCallback != nil {
+			cb := m.ConfirmDialogCallback
+			m.ConfirmDialogCallback = nil
+			return cb()
+		}
+	}
+	return nil
+}
+
 func (m *AppModel) handleInputPromptKey(msg tea.KeyMsg) tea.Cmd {
 	switch msg.String() {
 	case "esc":
@@ -446,11 +565,29 @@ func (m *AppModel) View() string {
 	if m.ShowConfirmQuit {
 		return components.RenderConfirmQuit(m.Width, m.Height, m.ConfirmQuitSelection, m.Styles)
 	}
+	if m.ShowConfirmDialog {
+		return components.RenderConfirmDialog(m.Width, m.Height, m.ConfirmDialogTitle, m.ConfirmDialogPrompt, m.ConfirmDialogSelection, m.Styles)
+	}
 	if m.ShowInputPrompt {
 		return components.RenderInputPrompt(m.Width, m.Height, m.InputPromptTitle, m.InputPromptText, m.Styles)
 	}
 	if m.ShowHelpModal {
 		return components.RenderHelpModal(m.Width, m.Height, m.Styles)
+	}
+
+	// Intro view has no audio playback active and renders full-screen without status or help bars
+	if m.Mode == components.ViewModeIntro {
+		introState := views.IntroViewState{
+			SelectedIndex: m.SelectionIndex,
+			ResumeTitle:   m.CurrentLyricsTitle,
+			PlaylistCount: len(m.Playlists),
+			Theme:         m.Theme,
+			StatusMessage: m.StatusMessage,
+		}
+		if introState.ResumeTitle == "" && m.LastPlayedPath != "" {
+			introState.ResumeTitle = m.LastPlayedPath
+		}
+		return views.RenderIntroState(m.Width, m.Height, introState, m.Styles)
 	}
 
 	// Layout breakdown:
@@ -480,9 +617,10 @@ func (m *AppModel) View() string {
 	case components.ViewModeLibrary:
 		libState := views.LibraryViewState{
 			CurrentPath:   m.CurrentPath,
-			Items:         m.LibraryItems,
+			Items:         m.getFilteredLibraryItems(),
 			SelectedIndex: m.SelectionIndex,
 			ScrollOffset:  m.ScrollOffset,
+			FilterQuery:   m.FilterQuery,
 		}
 		mainView = views.RenderLibraryState(m.Width, mainH, libState, m.Styles)
 
@@ -499,19 +637,21 @@ func (m *AppModel) View() string {
 
 	case components.ViewModePlaylistBrowser:
 		browserState := views.PlaylistBrowserState{
-			Playlists:     m.Playlists,
+			Playlists:     m.getFilteredPlaylists(),
 			PreviewSongs:  m.PreviewSongs,
 			SelectedIndex: m.SelectionIndex,
 			ScrollOffset:  m.ScrollOffset,
+			FilterQuery:   m.FilterQuery,
 		}
 		mainView = views.RenderPlaylistsBrowserState(m.Width, mainH, browserState, m.Styles)
 
 	case components.ViewModePlaylistView:
 		songsState := views.PlaylistSongsState{
 			PlaylistName:  m.CurrentPlaylistName,
-			Songs:         m.PlaylistSongs,
+			Songs:         m.getFilteredPlaylistSongs(),
 			SelectedIndex: m.SelectionIndex,
 			ScrollOffset:  m.ScrollOffset,
+			FilterQuery:   m.FilterQuery,
 		}
 		mainView = views.RenderPlaylistSongsState(m.Width, mainH, songsState, m.Styles)
 
@@ -523,10 +663,11 @@ func (m *AppModel) View() string {
 
 	case components.ViewModeQueue:
 		queueState := views.QueueViewState{
-			Queue:         m.PlayQueue,
+			Queue:         m.getFilteredQueue(),
 			QueueIndex:    m.QueueIndex,
 			SelectedIndex: m.SelectionIndex,
 			ScrollOffset:  m.ScrollOffset,
+			FilterQuery:   m.FilterQuery,
 		}
 		mainView = views.RenderQueueState(m.Width, mainH, queueState, m.Styles)
 
@@ -536,9 +677,6 @@ func (m *AppModel) View() string {
 		mainView, newOffset, newAutoScroll = views.RenderFullscreenLyricsView(m.Width, mainH, m.Player, m.LyricsData, m.LyricsScrollOffset, m.LyricsAutoScroll, m.Styles)
 		m.LyricsScrollOffset = newOffset
 		m.LyricsAutoScroll = newAutoScroll
-
-	case components.ViewModeIntro:
-		mainView = views.RenderIntroView(m.Width, mainH, m.Styles)
 	}
 
 	statusBar := components.RenderStatusBar(m.Width, m.Player, m.Styles)
@@ -546,3 +684,80 @@ func (m *AppModel) View() string {
 
 	return mainView + "\n" + statusBar + "\n" + helpBar
 }
+
+func (m *AppModel) prefetchUpcomingTracks() {
+	if len(m.PlayQueue) <= 1 {
+		return
+	}
+	nextIdx := m.QueueIndex + 1
+	if nextIdx >= len(m.PlayQueue) {
+		if m.Autoplay {
+			nextIdx = 0
+		} else {
+			return
+		}
+	}
+	if nextIdx < len(m.PlayQueue) {
+		nextSong := m.PlayQueue[nextIdx]
+		if stringutil.IsURL(nextSong.URL) {
+			search.DefaultStreamCache.PreFetch(nextSong.URL)
+		}
+	}
+}
+
+func (m *AppModel) getFilteredLibraryItems() []library.LibraryItem {
+	if m.FilterQuery == "" {
+		return m.LibraryItems
+	}
+	q := strings.ToLower(m.FilterQuery)
+	var filtered []library.LibraryItem
+	for _, it := range m.LibraryItems {
+		if strings.Contains(strings.ToLower(it.Name), q) {
+			filtered = append(filtered, it)
+		}
+	}
+	return filtered
+}
+
+func (m *AppModel) getFilteredPlaylists() []playlist.Playlist {
+	if m.FilterQuery == "" {
+		return m.Playlists
+	}
+	q := strings.ToLower(m.FilterQuery)
+	var filtered []playlist.Playlist
+	for _, p := range m.Playlists {
+		if strings.Contains(strings.ToLower(p.Name), q) {
+			filtered = append(filtered, p)
+		}
+	}
+	return filtered
+}
+
+func (m *AppModel) getFilteredPlaylistSongs() []playlist.PlaylistSong {
+	if m.FilterQuery == "" {
+		return m.PlaylistSongs
+	}
+	q := strings.ToLower(m.FilterQuery)
+	var filtered []playlist.PlaylistSong
+	for _, s := range m.PlaylistSongs {
+		if strings.Contains(strings.ToLower(s.Title), q) {
+			filtered = append(filtered, s)
+		}
+	}
+	return filtered
+}
+
+func (m *AppModel) getFilteredQueue() []playlist.PlaylistSong {
+	if m.FilterQuery == "" {
+		return m.PlayQueue
+	}
+	q := strings.ToLower(m.FilterQuery)
+	var filtered []playlist.PlaylistSong
+	for _, s := range m.PlayQueue {
+		if strings.Contains(strings.ToLower(s.Title), q) {
+			filtered = append(filtered, s)
+		}
+	}
+	return filtered
+}
+

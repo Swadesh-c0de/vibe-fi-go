@@ -10,9 +10,13 @@ import (
 	"vibe-fi/internal/utils/stringutil"
 )
 
-// RenderConfirmQuit renders the centered quit confirmation modal.
-func RenderConfirmQuit(termW, termH int, selectedIdx int, styles theme.Styles) string {
+// RenderConfirmDialog renders a centered confirmation modal with customizable title and prompt.
+func RenderConfirmDialog(termW, termH int, title, prompt string, selectedIdx int, styles theme.Styles) string {
 	winW := 46
+	pWidth := lipgloss.Width(prompt)
+	if pWidth+8 > winW {
+		winW = pWidth + 8
+	}
 	if termW-4 < winW {
 		winW = termW - 4
 	}
@@ -21,8 +25,12 @@ func RenderConfirmQuit(termW, termH int, selectedIdx int, styles theme.Styles) s
 	}
 	winH := 7
 
-	prompt := "Wanna quit listening?"
-	pWidth := lipgloss.Width(prompt)
+	maxP := winW - 4
+	if pWidth > maxP {
+		prompt = ansi.Truncate(prompt, maxP, "...")
+		pWidth = lipgloss.Width(prompt)
+	}
+
 	pLeft := (winW - 2 - pWidth) / 2
 	line1 := stringutil.SafeRepeat(" ", pLeft) + styles.StatusTitle.Render(prompt)
 
@@ -43,8 +51,16 @@ func RenderConfirmQuit(termW, termH int, selectedIdx int, styles theme.Styles) s
 	btnLeft := (winW - 2 - btnTotalW) / 2
 	line3 := stringutil.SafeRepeat(" ", btnLeft) + btnYes + stringutil.SafeRepeat(" ", btnSpace) + btnNo
 
-	box := RenderBoxWithTitle("Confirmation", []string{"", line1, line2, line3, ""}, winW, winH, styles)
+	if title == "" {
+		title = "Confirmation"
+	}
+	box := RenderBoxWithTitle(title, []string{"", line1, line2, line3, ""}, winW, winH, styles)
 	return OverlayCenter(box, termW, termH, winW, winH)
+}
+
+// RenderConfirmQuit renders the centered quit confirmation modal.
+func RenderConfirmQuit(termW, termH int, selectedIdx int, styles theme.Styles) string {
+	return RenderConfirmDialog(termW, termH, "Confirmation", "Wanna quit listening?", selectedIdx, styles)
 }
 
 // RenderInputPrompt renders a centered input dialog box.
@@ -101,6 +117,7 @@ func RenderHelpModal(termW, termH int, styles theme.Styles) string {
 		{"+ / -", "Volume Up / Down"},
 		{"N / .", "Next Track"},
 		{"B / ,", "Prev Track"},
+		{"A", "Add to Playlist"},
 		{"R", "Replay Song"},
 		{"V", "Cycle Layout"},
 		{"O", "Toggle Autoplay"},
@@ -112,9 +129,9 @@ func RenderHelpModal(termW, termH int, styles theme.Styles) string {
 		{"S", "Search YouTube"},
 		{"P", "Playlists Browser"},
 		{"C", "Play Queue"},
-		{"U", "Stream Custom URL"},
+		{"/", "Filter Items"},
 		{"Up / Down", "Scroll Lyrics"},
-		{"A", "Auto-Scroll Lyrics"},
+		{"Y", "Auto-Scroll Lyrics"},
 		{"T", "Cycle Theme"},
 		{"Esc / Q", "Quit / Back"},
 	}

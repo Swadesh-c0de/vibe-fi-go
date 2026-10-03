@@ -18,15 +18,21 @@ type QueueViewState struct {
 	QueueIndex    int
 	SelectedIndex int
 	ScrollOffset  int
+	FilterQuery   string
 }
 
 // RenderQueueState renders the queue view using a structured state.
 func RenderQueueState(width, height int, state QueueViewState, styles theme.Styles) string {
-	return RenderQueueView(width, height, state.Queue, state.QueueIndex, state.SelectedIndex, state.ScrollOffset, styles)
+	return RenderQueueFilteredView(width, height, state.Queue, state.QueueIndex, state.SelectedIndex, state.ScrollOffset, state.FilterQuery, styles)
 }
 
-// RenderQueueView renders the upcoming play queue.
+// RenderQueueView renders the upcoming play queue without filter.
 func RenderQueueView(width, height int, queue []playlist.PlaylistSong, queueIndex, selectedIndex, scrollOffset int, styles theme.Styles) string {
+	return RenderQueueFilteredView(width, height, queue, queueIndex, selectedIndex, scrollOffset, "", styles)
+}
+
+// RenderQueueFilteredView renders the upcoming play queue with an optional filter query.
+func RenderQueueFilteredView(width, height int, queue []playlist.PlaylistSong, queueIndex, selectedIndex, scrollOffset int, filterQuery string, styles theme.Styles) string {
 	innerH := height - 2
 	innerW := width - 2
 
@@ -35,11 +41,19 @@ func RenderQueueView(width, height int, queue []playlist.PlaylistSong, queueInde
 		lines[i] = strings.Repeat(" ", innerW)
 	}
 
+	title := "PLAY QUEUE"
+	if filterQuery != "" {
+		title = fmt.Sprintf("PLAY QUEUE [/ %s]", filterQuery)
+	}
+
 	if len(queue) == 0 {
 		msg := "Queue is empty."
+		if filterQuery != "" {
+			msg = "No tracks matching filter: " + filterQuery
+		}
 		pad := (innerW - lipgloss.Width(msg)) / 2
 		lines[innerH/2] = stringutil.SafeRepeat(" ", pad) + styles.StatusDim.Render(msg)
-		return components.RenderBoxWithTitle("PLAY QUEUE", lines, width, height, styles)
+		return components.RenderBoxWithTitle(title, lines, width, height, styles)
 	}
 
 	for i := 0; i < innerH; i++ {
@@ -71,5 +85,5 @@ func RenderQueueView(width, height int, queue []playlist.PlaylistSong, queueInde
 		}
 	}
 
-	return components.RenderBoxWithTitle("PLAY QUEUE", lines, width, height, styles)
+	return components.RenderBoxWithTitle(title, lines, width, height, styles)
 }

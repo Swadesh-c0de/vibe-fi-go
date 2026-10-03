@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
+	"sync"
 	"time"
+
 	"vibe-fi/internal/utils/bottle"
 	"vibe-fi/internal/utils/net"
 	"vibe-fi/internal/utils/stringutil"
@@ -177,4 +179,101 @@ func ResolveStreamInfo(url string) (StreamInfo, error) {
 	}
 
 	return info, nil
+}
+
+type cachedStream struct {
+	info      StreamInfo
+	timestamp time.Time
+}
+
+// StreamCache provides thread-safe in-memory caching and background pre-fetching
+// of direct audio streaming URLs (e.g. from yt-dlp) to enable gapless queue playback.
+type StreamCache struct {
+	mu      sync.RWMutex
+	streams map[string]cachedStream
+	pending map[string]bool
+	TTL     time.Duration
+}
+
+// DefaultStreamCache is the global stream cache instance.
+var DefaultStreamCache = NewStreamCache()
+
+// NewStreamCache constructs an initialized StreamCache with a 4-hour TTL.
+func NewStreamCache() *StreamCache {
+	return &StreamCache{
+		streams: make(map[string]cachedStream),
+		pending: make(map[string]bool),
+		TTL:     4 * time.Hour,
+	}
+}
+
+// Get retrieves a cached StreamInfo if present and not expired.
+func (c *StreamCache) Get(url string) (StreamInfo, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	entry, ok := c.streams[url]
+	if !ok {
+		return StreamInfo{}, false
+	}
+	if time.Since(entry.timestamp) > c.TTL {
+		return StreamInfo{}, false
+	}
+	return entry.info, true
+}
+
+// Set stores a resolved StreamInfo in the cache.
+func (c *StreamCache) Set(url string, info StreamInfo) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.streams[url] = cachedStream{
+		info:      info,
+		timestamp: time.Now(),
+	}
+	delete(c.pending, url)
+}
+
+// Has checks if a valid cached entry exists.
+func (c *StreamCache) Has(url string) bool {
+	_, ok := c.Get(url)
+	return ok
+}
+
+// PreFetch asynchronously resolves and caches stream info for url in the background.
+// If url is already cached or currently resolving, PreFetch returns immediately.
+func (c *StreamCache) PreFetch(url string) {
+	if url == "" {
+		return
+	}
+	c.mu.Lock()
+	if entry, ok := c.streams[url]; ok && time.Since(entry.timestamp) <= c.TTL {
+		c.mu.Unlock()
+		return
+	}
+	if c.pending[url] {
+		c.mu.Unlock()
+		return
+	}
+	c.pending[url] = true
+	c.mu.Unlock()
+
+	go func() {
+		info, err := ResolveStreamInfo(url)
+		if err == nil && info.StreamURL != "" {
+			c.Set(url, info)
+		} else {
+			c.mu.Lock()
+			delete(c.pending, url)
+			c.mu.Unlock()
+		}
+	}()
+}
+
+// Clear flushes all cached entries.
+func (c *StreamCache) Clear() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.streams = make(map[string]cachedStream)
+	c.pending = make(map[string]bool)
 }

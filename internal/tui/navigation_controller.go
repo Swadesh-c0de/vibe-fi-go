@@ -1,12 +1,14 @@
 package tui
 
 import (
+	"fmt"
 	"path/filepath"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"vibe-fi/internal/service/playlist"
 	"vibe-fi/internal/tui/components"
+	"vibe-fi/internal/tui/theme"
 	"vibe-fi/internal/utils/net"
 	"vibe-fi/internal/utils/stringutil"
 )
@@ -21,6 +23,11 @@ func (m *AppModel) handleKey(msg tea.KeyMsg) tea.Cmd {
 	}
 
 	keyStr := msg.String()
+
+	// In-view live filtering mode
+	if m.FilterMode {
+		return m.handleFilterKey(msg)
+	}
 
 	// Global help cheat-sheet (? or F1) across any non-text-input screen
 	if m.Mode != components.ViewModeSearchInput && (keyStr == "?" || keyStr == "f1") {
@@ -67,21 +74,92 @@ func (m *AppModel) handleKey(msg tea.KeyMsg) tea.Cmd {
 }
 
 func (m *AppModel) handleIntroKey(keyStr string) tea.Cmd {
+	const numIntroItems = 6
 	switch keyStr {
-	case "enter", "l", "L":
+	case "up", "k":
+		if m.SelectionIndex > 0 {
+			m.SelectionIndex--
+		}
+		return nil
+	case "down", "j":
+		if m.SelectionIndex < numIntroItems-1 {
+			m.SelectionIndex++
+		}
+		return nil
+	case "enter":
+		return m.executeIntroAction(m.SelectionIndex)
+	case "l", "L":
 		m.SetMode(components.ViewModeLibrary)
+		return nil
 	case "s", "S":
+		if len(m.SearchResults) > 0 {
+			m.SetMode(components.ViewModeSearchResults)
+			return nil
+		}
 		m.SearchQuery = ""
 		m.SetMode(components.ViewModeSearchInput)
+		return nil
 	case "p", "P":
 		m.SetMode(components.ViewModePlaylistBrowser)
+		return nil
 	case "r", "R":
 		return m.LoadState()
+	case "t", "T":
+		m.Theme = theme.CycleTheme(m.Theme.Name)
+		m.Styles = theme.MakeStyles(m.Theme)
+		m.saveCurrentState()
+		m.StatusMessage = ""
+		return nil
+	case "?":
+		m.ShowHelpModal = true
+		return nil
 	case "esc", "q", "Q":
+		m.ShowConfirmQuit = true
+		m.ConfirmQuitSelection = 1
+		return nil
+	}
+	return nil
+}
+
+func (m *AppModel) executeIntroAction(idx int) tea.Cmd {
+	switch idx {
+	case 0: // Music Library
+		m.SetMode(components.ViewModeLibrary)
+	case 1: // Search YouTube
+		if len(m.SearchResults) > 0 {
+			m.SetMode(components.ViewModeSearchResults)
+		} else {
+			m.SearchQuery = ""
+			m.SetMode(components.ViewModeSearchInput)
+		}
+	case 2: // Playlists Manager
+		m.SetMode(components.ViewModePlaylistBrowser)
+	case 3: // Resume Session
+		return m.LoadState()
+	case 4: // Keyboard Shortcuts
+		m.ShowHelpModal = true
+	case 5: // Quit
 		m.ShowConfirmQuit = true
 		m.ConfirmQuitSelection = 1
 	}
 	return nil
+}
+
+// hasActivePlayback reports whether an audio track is currently loaded or playing.
+func (m *AppModel) hasActivePlayback() bool {
+	if m.Player == nil {
+		return false
+	}
+	return !m.Player.IsIdle() || m.Player.IsPlaying() || m.Player.IsPaused()
+}
+
+// returnToMainOrPlayback routes back to Playback view if a track is active, or to Intro home page if idle.
+func (m *AppModel) returnToMainOrPlayback() {
+	if m.hasActivePlayback() {
+		m.SetMode(components.ViewModePlayback)
+	} else {
+		m.SetMode(components.ViewModeIntro)
+	}
 }
 
 func (m *AppModel) handleLibraryKey(keyStr string) tea.Cmd {
@@ -90,8 +168,14 @@ func (m *AppModel) handleLibraryKey(keyStr string) tea.Cmd {
 		listH = 1
 	}
 	switch keyStr {
+	case "/":
+		m.FilterMode = true
+		m.FilterQuery = ""
+		m.SelectionIndex = 0
+		m.ScrollOffset = 0
+		return m.ShowStatus("Filter: type to search... (ESC to exit)")
 	case "esc":
-		m.SetMode(components.ViewModePlayback)
+		m.returnToMainOrPlayback()
 	case "up", "k":
 		if m.SelectionIndex > 0 {
 			m.SelectionIndex--
@@ -139,6 +223,8 @@ func (m *AppModel) handleLibraryKey(keyStr string) tea.Cmd {
 			if !item.IsDirectory {
 				title := strings.TrimSuffix(item.Name, filepath.Ext(item.Name))
 				m.SongToAdd = playlist.PlaylistSong{Title: title, URL: item.Path, Duration: item.Duration}
+				prev := m.Mode
+				m.PreviousMode = &prev
 				m.Playlists = m.PlaylistManager.ListPlaylists()
 				m.SetMode(components.ViewModePlaylistSelectAdd)
 			}
@@ -151,7 +237,11 @@ func (m *AppModel) handleSearchInputKey(msg tea.KeyMsg) tea.Cmd {
 	keyStr := msg.String()
 	switch keyStr {
 	case "esc":
-		m.SetMode(components.ViewModePlayback)
+		if len(m.SearchResults) > 0 {
+			m.SetMode(components.ViewModeSearchResults)
+			return nil
+		}
+		m.returnToMainOrPlayback()
 	case "enter":
 		q := strings.TrimSpace(m.SearchQuery)
 		if q != "" {
@@ -178,7 +268,7 @@ func (m *AppModel) handleSearchResultsKey(keyStr string) tea.Cmd {
 	}
 	switch keyStr {
 	case "esc":
-		m.SetMode(components.ViewModePlayback)
+		m.returnToMainOrPlayback()
 	case "s", "S":
 		m.SearchQuery = ""
 		m.SetMode(components.ViewModeSearchInput)
@@ -216,6 +306,8 @@ func (m *AppModel) handleSearchResultsKey(keyStr string) tea.Cmd {
 		if len(m.SearchResults) > 0 && m.SelectionIndex < len(m.SearchResults) {
 			hit := m.SearchResults[m.SelectionIndex]
 			m.SongToAdd = playlist.PlaylistSong{Title: hit.Title, URL: hit.URL, Duration: hit.Duration}
+			prev := m.Mode
+			m.PreviousMode = &prev
 			m.Playlists = m.PlaylistManager.ListPlaylists()
 			m.SetMode(components.ViewModePlaylistSelectAdd)
 		}
@@ -229,8 +321,14 @@ func (m *AppModel) handlePlaylistBrowserKey(keyStr string) tea.Cmd {
 		listH = 1
 	}
 	switch keyStr {
+	case "/":
+		m.FilterMode = true
+		m.FilterQuery = ""
+		m.SelectionIndex = 0
+		m.ScrollOffset = 0
+		return m.ShowStatus("Filter: type to search... (ESC to exit)")
 	case "esc":
-		m.SetMode(components.ViewModePlayback)
+		m.returnToMainOrPlayback()
 	case "up", "k":
 		if m.SelectionIndex > 0 {
 			m.SelectionIndex--
@@ -285,13 +383,20 @@ func (m *AppModel) handlePlaylistBrowserKey(keyStr string) tea.Cmd {
 	case "d", "D":
 		if len(m.Playlists) > 0 && m.SelectionIndex < len(m.Playlists) {
 			name := m.Playlists[m.SelectionIndex].Name
-			_ = m.PlaylistManager.DeletePlaylist(name)
-			m.Playlists = m.PlaylistManager.ListPlaylists()
-			if m.SelectionIndex >= len(m.Playlists) && m.SelectionIndex > 0 {
-				m.SelectionIndex--
+			m.ShowConfirmDialog = true
+			m.ConfirmDialogTitle = "Delete Playlist"
+			m.ConfirmDialogPrompt = fmt.Sprintf("Delete playlist %q?", name)
+			m.ConfirmDialogSelection = 1 // Default to NO
+			m.ConfirmDialogCallback = func() tea.Cmd {
+				_ = m.PlaylistManager.DeletePlaylist(name)
+				m.Playlists = m.PlaylistManager.ListPlaylists()
+				if m.SelectionIndex >= len(m.Playlists) && m.SelectionIndex > 0 {
+					m.SelectionIndex--
+				}
+				m.updatePreviewSongs()
+				return m.ShowStatus("Deleted playlist: " + name)
 			}
-			m.updatePreviewSongs()
-			return m.ShowStatus("Deleted playlist: " + name)
+			return nil
 		}
 	}
 	return nil
@@ -303,6 +408,12 @@ func (m *AppModel) handlePlaylistSongsKey(keyStr string) tea.Cmd {
 		listH = 1
 	}
 	switch keyStr {
+	case "/":
+		m.FilterMode = true
+		m.FilterQuery = ""
+		m.SelectionIndex = 0
+		m.ScrollOffset = 0
+		return m.ShowStatus("Filter: type to search... (ESC to exit)")
 	case "esc":
 		m.SetMode(components.ViewModePlaylistBrowser)
 	case "up", "k":
@@ -333,12 +444,23 @@ func (m *AppModel) handlePlaylistSongsKey(keyStr string) tea.Cmd {
 		}
 	case "d", "D":
 		if len(m.PlaylistSongs) > 0 && m.SelectionIndex < len(m.PlaylistSongs) {
-			_ = m.PlaylistManager.RemoveSongFromPlaylist(m.CurrentPlaylistName, m.SelectionIndex)
-			m.PlaylistSongs = m.PlaylistManager.GetPlaylistSongs(m.CurrentPlaylistName)
-			if m.SelectionIndex >= len(m.PlaylistSongs) && m.SelectionIndex > 0 {
-				m.SelectionIndex--
+			song := m.PlaylistSongs[m.SelectionIndex]
+			songTitle := song.Title
+			idxToRemove := m.SelectionIndex
+			plName := m.CurrentPlaylistName
+			m.ShowConfirmDialog = true
+			m.ConfirmDialogTitle = "Remove Song"
+			m.ConfirmDialogPrompt = fmt.Sprintf("Remove %q from playlist?", songTitle)
+			m.ConfirmDialogSelection = 1 // Default to NO
+			m.ConfirmDialogCallback = func() tea.Cmd {
+				_ = m.PlaylistManager.RemoveSongFromPlaylist(plName, idxToRemove)
+				m.PlaylistSongs = m.PlaylistManager.GetPlaylistSongs(plName)
+				if m.SelectionIndex >= len(m.PlaylistSongs) && m.SelectionIndex > 0 {
+					m.SelectionIndex--
+				}
+				return m.ShowStatus("Song removed from playlist.")
 			}
-			return m.ShowStatus("Song removed from playlist.")
+			return nil
 		}
 	case "m", "M":
 		if len(m.PlaylistSongs) > 0 && m.SelectionIndex < len(m.PlaylistSongs) {
@@ -356,8 +478,12 @@ func (m *AppModel) handlePlaylistSelectKey(keyStr string) tea.Cmd {
 	case "esc":
 		if m.Mode == components.ViewModePlaylistSelectMove {
 			m.SetMode(components.ViewModePlaylistView)
+		} else if m.PreviousMode != nil {
+			prev := *m.PreviousMode
+			m.PreviousMode = nil
+			m.SetMode(prev)
 		} else {
-			m.SetMode(components.ViewModePlayback)
+			m.returnToMainOrPlayback()
 		}
 	case "up", "k":
 		if m.SelectionIndex > 0 {
@@ -378,7 +504,13 @@ func (m *AppModel) handlePlaylistSelectKey(keyStr string) tea.Cmd {
 				return m.ShowStatus("Song moved to " + targetName)
 			}
 			_ = m.PlaylistManager.AddSongToPlaylist(targetName, m.SongToAdd)
-			m.SetMode(components.ViewModePlayback)
+			if m.PreviousMode != nil {
+				prev := *m.PreviousMode
+				m.PreviousMode = nil
+				m.SetMode(prev)
+			} else {
+				m.returnToMainOrPlayback()
+			}
 			return m.ShowStatus("Added to " + targetName)
 		}
 	}
@@ -391,8 +523,14 @@ func (m *AppModel) handleQueueKey(keyStr string) tea.Cmd {
 		listH = 1
 	}
 	switch keyStr {
+	case "/":
+		m.FilterMode = true
+		m.FilterQuery = ""
+		m.SelectionIndex = 0
+		m.ScrollOffset = 0
+		return m.ShowStatus("Filter: type to search... (ESC to exit)")
 	case "esc":
-		m.SetMode(components.ViewModePlayback)
+		m.returnToMainOrPlayback()
 	case "up", "k":
 		if m.SelectionIndex > 0 {
 			m.SelectionIndex--
@@ -419,6 +557,16 @@ func (m *AppModel) handleQueueKey(keyStr string) tea.Cmd {
 			playCmd := m.StartTrackPlayback(song.Title, song.URL, song.Duration, m.PlayingPlaylistName)
 			return tea.Batch(statusCmd, playCmd)
 		}
+	case "a", "A":
+		if len(m.PlayQueue) > 0 && m.SelectionIndex < len(m.PlayQueue) {
+			song := m.PlayQueue[m.SelectionIndex]
+			m.SongToAdd = song
+			prev := m.Mode
+			m.PreviousMode = &prev
+			m.Playlists = m.PlaylistManager.ListPlaylists()
+			m.SetMode(components.ViewModePlaylistSelectAdd)
+			return nil
+		}
 	case "d", "D":
 		if len(m.PlayQueue) > 0 && m.SelectionIndex < len(m.PlayQueue) {
 			m.PlayQueue = append(m.PlayQueue[:m.SelectionIndex], m.PlayQueue[m.SelectionIndex+1:]...)
@@ -439,7 +587,7 @@ func (m *AppModel) handleQueueKey(keyStr string) tea.Cmd {
 func (m *AppModel) handleLyricsKey(keyStr string) tea.Cmd {
 	switch keyStr {
 	case "esc", "q", "Q":
-		m.SetMode(components.ViewModePlayback)
+		m.returnToMainOrPlayback()
 	case "a", "A":
 		m.LyricsAutoScroll = !m.LyricsAutoScroll
 		if m.LyricsAutoScroll {
@@ -465,4 +613,136 @@ func (m *AppModel) updatePreviewSongs() {
 	} else {
 		m.PreviewSongs = nil
 	}
+}
+
+// handleFilterKey processes keyboard input when in-view live filtering is active.
+func (m *AppModel) handleFilterKey(msg tea.KeyMsg) tea.Cmd {
+	keyStr := msg.String()
+	switch keyStr {
+	case "esc":
+		m.FilterMode = false
+		m.FilterQuery = ""
+		m.SelectionIndex = 0
+		m.ScrollOffset = 0
+		return m.ShowStatus("Filter cleared.")
+
+	case "enter":
+		m.FilterMode = false
+		switch m.Mode {
+		case components.ViewModeLibrary:
+			filtered := m.getFilteredLibraryItems()
+			if len(filtered) > 0 && m.SelectionIndex < len(filtered) {
+				item := filtered[m.SelectionIndex]
+				if item.IsDirectory {
+					m.CurrentPath = item.Path
+					m.LibraryItems, _ = m.Library.ListDirectory(item.Path)
+					m.FilterQuery = ""
+					m.SelectionIndex = 0
+					m.ScrollOffset = 0
+					return nil
+				} else {
+					title := strings.TrimSuffix(item.Name, filepath.Ext(item.Name))
+					m.PlayQueue = []playlist.PlaylistSong{{Title: title, URL: item.Path, Duration: item.Duration}}
+					m.QueueIndex = 0
+					m.IsPlayingFromPlaylist = false
+					m.SetMode(components.ViewModePlayback)
+					statusCmd := m.ShowStatus("Playing: " + title)
+					playCmd := m.StartTrackPlayback(title, item.Path, item.Duration, "")
+					return tea.Batch(statusCmd, playCmd)
+				}
+			}
+
+		case components.ViewModePlaylistBrowser:
+			filtered := m.getFilteredPlaylists()
+			if len(filtered) > 0 && m.SelectionIndex < len(filtered) {
+				m.CurrentPlaylistName = filtered[m.SelectionIndex].Name
+				m.PlaylistSongs = m.PlaylistManager.GetPlaylistSongs(m.CurrentPlaylistName)
+				m.FilterQuery = ""
+				m.SetMode(components.ViewModePlaylistView)
+				return nil
+			}
+
+		case components.ViewModePlaylistView:
+			filtered := m.getFilteredPlaylistSongs()
+			if len(filtered) > 0 && m.SelectionIndex < len(filtered) {
+				s := filtered[m.SelectionIndex]
+				m.PlayQueue = filtered
+				m.QueueIndex = m.SelectionIndex
+				m.IsPlayingFromPlaylist = true
+				m.PlayingPlaylistName = m.CurrentPlaylistName
+				m.SetMode(components.ViewModePlayback)
+				statusCmd := m.ShowStatus("Playing: " + s.Title)
+				playCmd := m.StartTrackPlayback(s.Title, s.URL, s.Duration, m.CurrentPlaylistName)
+				return tea.Batch(statusCmd, playCmd)
+			}
+
+		case components.ViewModeQueue:
+			filtered := m.getFilteredQueue()
+			if len(filtered) > 0 && m.SelectionIndex < len(filtered) {
+				s := filtered[m.SelectionIndex]
+				for idx, qSong := range m.PlayQueue {
+					if qSong.URL == s.URL && qSong.Title == s.Title {
+						m.QueueIndex = idx
+						break
+					}
+				}
+				m.SetMode(components.ViewModePlayback)
+				statusCmd := m.ShowStatus("Playing: " + s.Title)
+				playCmd := m.StartTrackPlayback(s.Title, s.URL, s.Duration, m.PlayingPlaylistName)
+				return tea.Batch(statusCmd, playCmd)
+			}
+		}
+
+	case "up", "ctrl+p":
+		if m.SelectionIndex > 0 {
+			m.SelectionIndex--
+			if m.SelectionIndex < m.ScrollOffset {
+				m.ScrollOffset = m.SelectionIndex
+			}
+		}
+
+	case "down", "ctrl+n":
+		var maxLen int
+		switch m.Mode {
+		case components.ViewModeLibrary:
+			maxLen = len(m.getFilteredLibraryItems())
+		case components.ViewModePlaylistBrowser:
+			maxLen = len(m.getFilteredPlaylists())
+		case components.ViewModePlaylistView:
+			maxLen = len(m.getFilteredPlaylistSongs())
+		case components.ViewModeQueue:
+			maxLen = len(m.getFilteredQueue())
+		}
+		listH := m.Height - 8 - 2
+		if listH < 1 {
+			listH = 1
+		}
+		if m.SelectionIndex < maxLen-1 {
+			m.SelectionIndex++
+			if m.SelectionIndex >= m.ScrollOffset+listH {
+				m.ScrollOffset = m.SelectionIndex - listH + 1
+			}
+		}
+
+	case "backspace":
+		if len(m.FilterQuery) > 0 {
+			m.FilterQuery = m.FilterQuery[:len(m.FilterQuery)-1]
+			m.SelectionIndex = 0
+			m.ScrollOffset = 0
+		} else {
+			m.FilterMode = false
+		}
+
+	default:
+		if len(msg.Runes) > 0 {
+			m.FilterQuery += string(msg.Runes)
+			m.SelectionIndex = 0
+			m.ScrollOffset = 0
+		} else if keyStr == " " {
+			m.FilterQuery += " "
+			m.SelectionIndex = 0
+			m.ScrollOffset = 0
+		}
+	}
+	return nil
 }

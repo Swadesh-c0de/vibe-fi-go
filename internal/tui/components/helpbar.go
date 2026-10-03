@@ -52,25 +52,25 @@ func RenderHelpBar(width int, mode ViewMode, msg string, autoplay bool, styles t
 			if autoplay {
 				autoStr = "ON"
 			}
-			text = fmt.Sprintf("[SPACE] Pause [N/B] Next/Prev [V] Layout [C] Queue [L] Library [S] Search [P] Playlist [R] Replay [O] Autoplay:%s [?] Help [ESC/Q] Quit", autoStr)
+			text = fmt.Sprintf("[SPACE] Pause [A] Add Playlist [N/B] Next/Prev [V] Layout [C] Queue [L] Library [S] Search [P] Playlist [R] Replay [O] Autoplay:%s [?] Help [ESC/Q] Quit", autoStr)
 		case ViewModeLibrary:
-			text = "[ENTER] Select/Play [BKSP/h] Parent Directory [?] Help [ESC] Playback"
+			text = "[ENTER] Select/Play [/] Filter [BKSP/h] Up [?] Help [ESC] Back"
 		case ViewModeSearchInput:
 			text = "[ENTER] Search YouTube [ESC] Cancel"
 		case ViewModeSearchResults:
 			text = "[ENTER] Play [A] Add to Playlist [S] New Search [?] Help [ESC] Back"
 		case ViewModePlaylistBrowser:
-			text = "[ENTER] View [N] New [D] Delete [R] Rename [E] Export M3U [?] Help [ESC] Back"
+			text = "[ENTER] View [/] Filter [N] New [D] Delete [R] Rename [E] Export [?] Help [ESC] Back"
 		case ViewModePlaylistView:
-			text = "[ENTER] Play [D] Remove Song [M] Move Song [?] Help [ESC] Back"
+			text = "[ENTER] Play [/] Filter [D] Remove [M] Move [?] Help [ESC] Back"
 		case ViewModePlaylistSelectAdd, ViewModePlaylistSelectMove:
 			text = "[ENTER] Select [N] New Playlist [ESC] Cancel"
 		case ViewModeQueue:
-			text = "[ENTER] Play Selected [D] Remove [?] Help [ESC] Back"
+			text = "[ENTER] Play Selected [A] Add to Playlist [/] Filter [D] Remove [?] Help [ESC] Back"
 		case ViewModeLyrics:
-			text = "[A] Auto-Scroll [UP/DOWN] Scroll [?] Help [ESC] Back"
+			text = "[Y] Auto-Scroll [UP/DOWN] Scroll [?] Help [ESC] Back"
 		case ViewModeIntro:
-			text = "[L] Library [S] Search [P] Playlists [R] Resume [?] Help [ESC] Quit"
+			text = "[↑/↓] Select [ENTER] Open [T] Theme [?] Help [ESC/Q] Quit"
 		}
 
 		if lipgloss.Width(text) > innerW-2 {

@@ -44,6 +44,12 @@ func (m *MockPlayer) Load(path string, mode string) error {
 	return nil
 }
 
+func (m *MockPlayer) GetPath() string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.path
+}
+
 func (m *MockPlayer) Play() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()

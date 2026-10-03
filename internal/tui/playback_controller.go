@@ -18,11 +18,20 @@ func (m *AppModel) StartTrackPlayback(title, url, duration, artistHint string) t
 	m.LyricsAutoScroll = true
 	m.CurrentLyricsTitle = title
 
-	_ = m.Player.Load(url, "replace")
+	loadURL := url
+	if stringutil.IsURL(url) {
+		if cached, ok := search.DefaultStreamCache.Get(url); ok && cached.StreamURL != "" {
+			loadURL = cached.StreamURL
+		}
+	}
+
+	_ = m.Player.Load(loadURL, "replace")
 	if title != "" {
 		_ = m.Player.SetProperty("force-media-title", title)
 	}
 	_ = m.Player.Play()
+
+	m.prefetchUpcomingTracks()
 
 	durSec := stringutil.ParseDuration(duration)
 
@@ -77,7 +86,17 @@ func (m *AppModel) searchYoutubeCmd(query string) tea.Cmd {
 
 func (m *AppModel) resolveStreamCmd(url string) tea.Cmd {
 	return func() tea.Msg {
+		if info, ok := search.DefaultStreamCache.Get(url); ok {
+			return StreamResolvedMsg{
+				URL:  url,
+				Info: info,
+				Err:  nil,
+			}
+		}
 		info, err := search.ResolveStreamInfo(url)
+		if err == nil && info.StreamURL != "" {
+			search.DefaultStreamCache.Set(url, info)
+		}
 		return StreamResolvedMsg{
 			URL:  url,
 			Info: info,
@@ -99,6 +118,7 @@ func (m *AppModel) playNext() tea.Cmd {
 		}
 	}
 	m.QueueIndex = nextIdx
+	m.prefetchUpcomingTracks()
 	song := m.PlayQueue[m.QueueIndex]
 	if stringutil.IsURL(song.URL) && !net.IsOnline() {
 		return m.ShowStatus("Network unavailable: cannot play next track.")
@@ -135,7 +155,15 @@ func (m *AppModel) playPrevious() tea.Cmd {
 // handlePlaybackKey processes keyboard shortcuts when in playback view.
 func (m *AppModel) handlePlaybackKey(keyStr string) tea.Cmd {
 	switch keyStr {
-	case "esc", "q", "Q":
+	case "esc":
+		if !m.hasActivePlayback() {
+			m.SetMode(components.ViewModeIntro)
+			return nil
+		}
+		m.ShowConfirmQuit = true
+		m.ConfirmQuitSelection = 1
+		return nil
+	case "q", "Q":
 		m.ShowConfirmQuit = true
 		m.ConfirmQuitSelection = 1
 		return nil
@@ -156,6 +184,10 @@ func (m *AppModel) handlePlaybackKey(keyStr string) tea.Cmd {
 		return nil
 
 	case "s", "S":
+		if len(m.SearchResults) > 0 {
+			m.SetMode(components.ViewModeSearchResults)
+			return nil
+		}
 		m.SearchQuery = ""
 		m.SetMode(components.ViewModeSearchInput)
 		return nil
@@ -208,6 +240,7 @@ func (m *AppModel) handlePlaybackKey(keyStr string) tea.Cmd {
 		if m.EventBus != nil {
 			m.EventBus.Publish(eventbus.EventVolumeChanged, eventbus.VolumeChangedEvent{Volume: m.Player.Volume()})
 		}
+		m.saveCurrentState()
 		return nil
 
 	case "-", "_":
@@ -216,9 +249,21 @@ func (m *AppModel) handlePlaybackKey(keyStr string) tea.Cmd {
 		if m.EventBus != nil {
 			m.EventBus.Publish(eventbus.EventVolumeChanged, eventbus.VolumeChangedEvent{Volume: m.Player.Volume()})
 		}
+		m.saveCurrentState()
 		return nil
 
 	case "a", "A":
+		if song, ok := m.currentTrackForPlaylist(); ok {
+			m.SongToAdd = song
+			prev := m.Mode
+			m.PreviousMode = &prev
+			m.Playlists = m.PlaylistManager.ListPlaylists()
+			m.SetMode(components.ViewModePlaylistSelectAdd)
+			return nil
+		}
+		return m.ShowStatus("No track currently playing.")
+
+	case "y", "Y":
 		m.LyricsAutoScroll = !m.LyricsAutoScroll
 		if m.LyricsAutoScroll {
 			return m.ShowStatus("Lyrics Auto-Scroll: ON")
@@ -227,6 +272,7 @@ func (m *AppModel) handlePlaybackKey(keyStr string) tea.Cmd {
 
 	case "o", "O":
 		m.Autoplay = !m.Autoplay
+		m.saveCurrentState()
 		autoStr := "OFF"
 		if m.Autoplay {
 			autoStr = "ON"
