@@ -21,6 +21,25 @@ const (
 	LayoutFullLyrics                           // 100% Lyrics
 )
 
+// PlaybackViewState encapsulates the display state of the playback view.
+type PlaybackViewState struct {
+	Layout       PlaybackLayout
+	LyricsData   lyrics.LyricsData
+	ScrollOffset int
+	AutoScroll   bool
+}
+
+// RenderPlaybackState renders the playback view using a structured PlaybackViewState.
+func RenderPlaybackState(width, height int, state *PlaybackViewState, p player.AudioPlayer, viz *visualizer.Visualizer, styles theme.Styles) string {
+	if state == nil {
+		return ""
+	}
+	out, newOffset, newAuto := RenderPlaybackView(width, height, state.Layout, p, viz, state.LyricsData, state.ScrollOffset, state.AutoScroll, styles)
+	state.ScrollOffset = newOffset
+	state.AutoScroll = newAuto
+	return out
+}
+
 // RenderPlaybackView renders the playback view according to the active PlaybackLayout.
 func RenderPlaybackView(width, height int, layout PlaybackLayout, p player.AudioPlayer, viz *visualizer.Visualizer, lyricsData lyrics.LyricsData, lyricsScrollOffset int, autoScroll bool, styles theme.Styles) (string, int, bool) {
 	if height < 4 {

@@ -64,6 +64,18 @@ func RenderSearchInput(width, height int, query string, styles theme.Styles) str
 	return components.RenderBoxWithTitle("SEARCH YOUTUBE", lines, width, height, styles)
 }
 
+// SearchResultsState encapsulates the state for displaying search results.
+type SearchResultsState struct {
+	Results       []search.SearchResult
+	SelectedIndex int
+	ScrollOffset  int
+}
+
+// RenderSearchResultsState renders search results using a structured SearchResultsState.
+func RenderSearchResultsState(width, height int, state SearchResultsState, styles theme.Styles) string {
+	return RenderSearchResults(width, height, state.Results, state.SelectedIndex, state.ScrollOffset, styles)
+}
+
 // RenderSearchResults renders the search result table.
 func RenderSearchResults(width, height int, results []search.SearchResult, selectedIndex, scrollOffset int, styles theme.Styles) string {
 	innerH := height - 2

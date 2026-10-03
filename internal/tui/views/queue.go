@@ -12,6 +12,19 @@ import (
 	"vibe-fi/internal/utils/stringutil"
 )
 
+// QueueViewState encapsulates play queue display state.
+type QueueViewState struct {
+	Queue         []playlist.PlaylistSong
+	QueueIndex    int
+	SelectedIndex int
+	ScrollOffset  int
+}
+
+// RenderQueueState renders the queue view using a structured state.
+func RenderQueueState(width, height int, state QueueViewState, styles theme.Styles) string {
+	return RenderQueueView(width, height, state.Queue, state.QueueIndex, state.SelectedIndex, state.ScrollOffset, styles)
+}
+
 // RenderQueueView renders the upcoming play queue.
 func RenderQueueView(width, height int, queue []playlist.PlaylistSong, queueIndex, selectedIndex, scrollOffset int, styles theme.Styles) string {
 	innerH := height - 2

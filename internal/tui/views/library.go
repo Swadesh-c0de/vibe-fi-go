@@ -12,6 +12,19 @@ import (
 	"vibe-fi/internal/utils/stringutil"
 )
 
+// LibraryViewState encapsulates directory browser navigation state.
+type LibraryViewState struct {
+	CurrentPath   string
+	Items         []library.LibraryItem
+	SelectedIndex int
+	ScrollOffset  int
+}
+
+// RenderLibraryState renders the library view using a structured LibraryViewState.
+func RenderLibraryState(width, height int, state LibraryViewState, styles theme.Styles) string {
+	return RenderLibraryView(width, height, state.CurrentPath, state.Items, state.SelectedIndex, state.ScrollOffset, styles)
+}
+
 // RenderLibraryView renders the local music directory browser.
 func RenderLibraryView(width, height int, currentPath string, items []library.LibraryItem, selectedIndex, scrollOffset int, styles theme.Styles) string {
 	innerH := height - 2

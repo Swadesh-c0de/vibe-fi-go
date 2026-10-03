@@ -12,6 +12,32 @@ import (
 	"vibe-fi/internal/utils/stringutil"
 )
 
+// PlaylistBrowserState encapsulates playlist listing and preview state.
+type PlaylistBrowserState struct {
+	Playlists     []playlist.Playlist
+	PreviewSongs  []playlist.PlaylistSong
+	SelectedIndex int
+	ScrollOffset  int
+}
+
+// RenderPlaylistsBrowserState renders the playlists browser using a structured state.
+func RenderPlaylistsBrowserState(width, height int, state PlaylistBrowserState, styles theme.Styles) string {
+	return RenderPlaylistsBrowser(width, height, state.Playlists, state.PreviewSongs, state.SelectedIndex, state.ScrollOffset, styles)
+}
+
+// PlaylistSongsState encapsulates playlist song browsing state.
+type PlaylistSongsState struct {
+	PlaylistName  string
+	Songs         []playlist.PlaylistSong
+	SelectedIndex int
+	ScrollOffset  int
+}
+
+// RenderPlaylistSongsState renders the songs within a playlist using a structured state.
+func RenderPlaylistSongsState(width, height int, state PlaylistSongsState, styles theme.Styles) string {
+	return RenderPlaylistSongsView(width, height, state.PlaylistName, state.Songs, state.SelectedIndex, state.ScrollOffset, styles)
+}
+
 // RenderPlaylistsBrowser renders the split view (playlists list on left, preview on right).
 func RenderPlaylistsBrowser(width, height int, playlists []playlist.Playlist, previewSongs []playlist.PlaylistSong, selectedIndex, scrollOffset int, styles theme.Styles) string {
 	innerH := height - 2

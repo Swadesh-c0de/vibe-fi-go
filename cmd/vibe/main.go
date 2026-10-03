@@ -12,6 +12,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"vibe-fi/internal/config"
+	"vibe-fi/internal/eventbus"
 	"vibe-fi/internal/integration/discord"
 	"vibe-fi/internal/integration/mpris"
 	"vibe-fi/internal/player"
@@ -198,19 +199,73 @@ func main() {
 		defer mprisServer.Stop()
 	}
 
-	// If initial CLI track was supplied, broadcast to MPRIS and Discord
+	// Wire EventBus subscribers for external integrations (MPRIS, Discord)
+	if app.EventBus != nil {
+		app.EventBus.Subscribe(eventbus.EventTrackStarted, func(e interface{}) {
+			evt, ok := e.(eventbus.TrackStartedEvent)
+			if !ok {
+				return
+			}
+			if mprisServer != nil {
+				mprisServer.EmitTrack(evt.Title, evt.Artist, evt.Duration)
+				mprisServer.EmitPlaybackStatus("Playing")
+			}
+			if discordClient != nil {
+				artist := evt.Artist
+				trackName := evt.Title
+				if artist == "" {
+					artist, trackName = stringutil.CleanTrackTitle(evt.Title)
+				}
+				if artist == "" {
+					artist = "Unknown Artist"
+				}
+				discordClient.UpdatePresence(trackName, artist)
+			}
+		})
+
+		app.EventBus.Subscribe(eventbus.EventPlaybackStateChanged, func(e interface{}) {
+			evt, ok := e.(eventbus.PlaybackStateChangedEvent)
+			if !ok {
+				return
+			}
+			if mprisServer != nil {
+				mprisServer.EmitPlaybackStatus(evt.State.String())
+			}
+			if evt.State == eventbus.StateStopped && discordClient != nil {
+				discordClient.ClearPresence()
+			}
+		})
+
+		app.EventBus.Subscribe(eventbus.EventVolumeChanged, func(e interface{}) {
+			evt, ok := e.(eventbus.VolumeChangedEvent)
+			if !ok {
+				return
+			}
+			if mprisServer != nil {
+				mprisServer.EmitVolume(evt.Volume)
+			}
+		})
+
+		app.EventBus.Subscribe(eventbus.EventSeeked, func(e interface{}) {
+			evt, ok := e.(eventbus.SeekedEvent)
+			if !ok {
+				return
+			}
+			if mprisServer != nil {
+				posMicro := int64(evt.PositionSeconds * 1000000.0)
+				mprisServer.EmitSeeked(posMicro)
+			}
+		})
+	}
+
+	// If initial CLI track was supplied, broadcast domain event
 	if startPlayback && len(initialQueue) > 0 {
 		first := initialQueue[0]
-		if mprisServer != nil {
-			mprisServer.EmitTrack(first.Title, "", 0)
-			mprisServer.EmitPlaybackStatus("Playing")
-		}
-		if discordClient != nil {
-			artist, track := stringutil.CleanTrackTitle(first.Title)
-			if artist == "" {
-				artist = "Unknown Artist"
-			}
-			discordClient.UpdatePresence(track, artist)
+		if app.EventBus != nil {
+			app.EventBus.Publish(eventbus.EventTrackStarted, eventbus.TrackStartedEvent{
+				Title: first.Title,
+				URL:   first.URL,
+			})
 		}
 	}
 
