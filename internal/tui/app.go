@@ -66,6 +66,8 @@ type AppModel struct {
 	ScrollOffset   int
 
 	LyricsData         lyrics.LyricsData
+	LyricsLoading      bool
+	AnimFrame          int
 	LyricsScrollOffset int
 	LyricsAutoScroll   bool
 	LyricsRequestID    uint64
@@ -356,6 +358,7 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Batch(statusCmd, m.tickCmd())
 		}
 
+		m.AnimFrame++
 		return m, m.tickCmd()
 
 	case ClearStatusMsg:
@@ -365,6 +368,7 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case LyricsFetchedMsg:
 		if msg.RequestID == m.LyricsRequestID {
 			m.LyricsData = msg.Data
+			m.LyricsLoading = false
 		}
 		return m, nil
 
@@ -605,10 +609,12 @@ func (m *AppModel) View() string {
 	switch m.Mode {
 	case components.ViewModePlayback:
 		pbState := views.PlaybackViewState{
-			Layout:       m.PlaybackLayout,
-			LyricsData:   m.LyricsData,
-			ScrollOffset: m.LyricsScrollOffset,
-			AutoScroll:   m.LyricsAutoScroll,
+			Layout:        m.PlaybackLayout,
+			LyricsData:    m.LyricsData,
+			LyricsLoading: m.LyricsLoading,
+			AnimFrame:     m.AnimFrame,
+			ScrollOffset:  m.LyricsScrollOffset,
+			AutoScroll:    m.LyricsAutoScroll,
 		}
 		mainView = views.RenderPlaybackState(m.Width, mainH, &pbState, m.Player, m.Visualizer, m.Styles)
 		m.LyricsScrollOffset = pbState.ScrollOffset
@@ -674,7 +680,7 @@ func (m *AppModel) View() string {
 	case components.ViewModeLyrics:
 		var newOffset int
 		var newAutoScroll bool
-		mainView, newOffset, newAutoScroll = views.RenderFullscreenLyricsView(m.Width, mainH, m.Player, m.LyricsData, m.LyricsScrollOffset, m.LyricsAutoScroll, m.Styles)
+		mainView, newOffset, newAutoScroll = views.RenderFullscreenLyricsView(m.Width, mainH, m.Player, m.LyricsData, m.LyricsLoading, m.AnimFrame, m.LyricsScrollOffset, m.LyricsAutoScroll, m.Styles)
 		m.LyricsScrollOffset = newOffset
 		m.LyricsAutoScroll = newAutoScroll
 	}

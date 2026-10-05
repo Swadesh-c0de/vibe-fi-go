@@ -3,6 +3,7 @@ package tui
 import (
 	tea "github.com/charmbracelet/bubbletea"
 	"vibe-fi/internal/eventbus"
+	"vibe-fi/internal/service/lyrics"
 	"vibe-fi/internal/service/search"
 	"vibe-fi/internal/tui/components"
 	"vibe-fi/internal/tui/theme"
@@ -55,6 +56,8 @@ func (m *AppModel) StartTrackPlayback(title, url, duration, artistHint string) t
 func (m *AppModel) fetchLyricsCmd(title, filePath string, duration float64, artistHint string) tea.Cmd {
 	m.LyricsRequestID++
 	reqID := m.LyricsRequestID
+	m.LyricsLoading = true
+	m.LyricsData = lyrics.LyricsData{}
 	mgr := m.LyricsManager
 
 	return func() tea.Msg {

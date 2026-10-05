@@ -173,31 +173,50 @@ func (m *LyricsManager) FetchLyricsWithFile(filePath, artist, title string, dura
 		}
 	}
 
-	// 2. Check offline cache
-	if cached, ok := m.GetCachedLyrics(artist, title); ok {
+	// 2. Check offline cache: if cached lyrics are already synced, return immediately
+	cached, hasCached := m.GetCachedLyrics(artist, title)
+	if hasCached && cached.HasSynced {
 		return cached, nil
 	}
 
 	if !net.IsOnline() {
+		if hasCached && (cached.PlainLyrics != "" || cached.HasSynced) {
+			return cached, nil
+		}
 		return LyricsData{PlainLyrics: "Network unavailable: lyrics offline."}, fmt.Errorf("offline")
 	}
 
 	// 3. Try exact match /api/get
 	data, err := m.fetchExact(artist, title, duration)
-	if err == nil && (data.HasSynced || data.PlainLyrics != "") {
+	if err == nil && data.HasSynced {
 		m.saveToCache(artist, title, data)
 		return data, nil
 	}
 
-	// 4. Try search fallback /api/search?q=
+	// 4. Try search fallback /api/search?q= to prioritize finding synchronized lyrics
 	query := title
 	if artist != "" {
 		query = artist + " " + title
 	}
-	data, err = m.fetchSearch(query)
-	if err == nil && (data.HasSynced || data.PlainLyrics != "") {
+	searchData, searchErr := m.fetchSearch(query)
+	if searchErr == nil && searchData.HasSynced {
+		m.saveToCache(artist, title, searchData)
+		return searchData, nil
+	}
+
+	// 5. If neither source had synced lyrics, fall back to plain lyrics (exact first, then search)
+	if err == nil && data.PlainLyrics != "" {
 		m.saveToCache(artist, title, data)
 		return data, nil
+	}
+	if searchErr == nil && searchData.PlainLyrics != "" {
+		m.saveToCache(artist, title, searchData)
+		return searchData, nil
+	}
+
+	// 6. If online fetch failed but we had cached plain lyrics, use them
+	if hasCached && (cached.PlainLyrics != "" || cached.HasSynced) {
+		return cached, nil
 	}
 
 	notFound := LyricsData{PlainLyrics: "Lyrics not found"}
@@ -241,6 +260,16 @@ func (m *LyricsManager) fetchExact(artist, title string, duration float64) (Lyri
 		data.HasSynced = len(data.SyncedLyrics) > 0
 	}
 	data.PlainLyrics = res.PlainLyrics
+	if data.PlainLyrics == "" && len(data.SyncedLyrics) > 0 {
+		var sb strings.Builder
+		for idx, line := range data.SyncedLyrics {
+			if idx > 0 {
+				sb.WriteString("\n")
+			}
+			sb.WriteString(line.Text)
+		}
+		data.PlainLyrics = sb.String()
+	}
 	return data, nil
 }
 
@@ -284,5 +313,15 @@ func (m *LyricsManager) fetchSearch(query string) (LyricsData, error) {
 		data.HasSynced = len(data.SyncedLyrics) > 0
 	}
 	data.PlainLyrics = chosen.PlainLyrics
+	if data.PlainLyrics == "" && len(data.SyncedLyrics) > 0 {
+		var sb strings.Builder
+		for idx, line := range data.SyncedLyrics {
+			if idx > 0 {
+				sb.WriteString("\n")
+			}
+			sb.WriteString(line.Text)
+		}
+		data.PlainLyrics = sb.String()
+	}
 	return data, nil
 }

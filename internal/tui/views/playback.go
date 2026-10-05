@@ -23,10 +23,12 @@ const (
 
 // PlaybackViewState encapsulates the display state of the playback view.
 type PlaybackViewState struct {
-	Layout       PlaybackLayout
-	LyricsData   lyrics.LyricsData
-	ScrollOffset int
-	AutoScroll   bool
+	Layout        PlaybackLayout
+	LyricsData    lyrics.LyricsData
+	LyricsLoading bool
+	AnimFrame     int
+	ScrollOffset  int
+	AutoScroll    bool
 }
 
 // RenderPlaybackState renders the playback view using a structured PlaybackViewState.
@@ -34,14 +36,14 @@ func RenderPlaybackState(width, height int, state *PlaybackViewState, p player.A
 	if state == nil {
 		return ""
 	}
-	out, newOffset, newAuto := RenderPlaybackView(width, height, state.Layout, p, viz, state.LyricsData, state.ScrollOffset, state.AutoScroll, styles)
+	out, newOffset, newAuto := RenderPlaybackView(width, height, state.Layout, p, viz, state.LyricsData, state.LyricsLoading, state.AnimFrame, state.ScrollOffset, state.AutoScroll, styles)
 	state.ScrollOffset = newOffset
 	state.AutoScroll = newAuto
 	return out
 }
 
 // RenderPlaybackView renders the playback view according to the active PlaybackLayout.
-func RenderPlaybackView(width, height int, layout PlaybackLayout, p player.AudioPlayer, viz *visualizer.Visualizer, lyricsData lyrics.LyricsData, lyricsScrollOffset int, autoScroll bool, styles theme.Styles) (string, int, bool) {
+func RenderPlaybackView(width, height int, layout PlaybackLayout, p player.AudioPlayer, viz *visualizer.Visualizer, lyricsData lyrics.LyricsData, lyricsLoading bool, animFrame int, lyricsScrollOffset int, autoScroll bool, styles theme.Styles) (string, int, bool) {
 	if height < 4 {
 		height = 4
 	}
@@ -54,7 +56,7 @@ func RenderPlaybackView(width, height int, layout PlaybackLayout, p player.Audio
 		return vizBox, lyricsScrollOffset, autoScroll
 
 	case LayoutFullLyrics:
-		lyricsLines, newOffset, newAutoScroll := renderLyricsBody(width-2, height-2, p, lyricsData, lyricsScrollOffset, autoScroll, styles)
+		lyricsLines, newOffset, newAutoScroll := renderLyricsBody(width-2, height-2, p, lyricsData, lyricsLoading, animFrame, lyricsScrollOffset, autoScroll, styles)
 		lyricsBox := components.RenderBoxWithTitle("LYRICS", lyricsLines, width, height, styles)
 		return lyricsBox, newOffset, newAutoScroll
 
@@ -74,20 +76,64 @@ func RenderPlaybackView(width, height int, layout PlaybackLayout, p player.Audio
 		vizBox := components.RenderBoxWithTitle(vizHeader, vizBody, width, vizH, styles)
 
 		// Bottom: Lyrics Box
-		lyricsLines, newOffset, newAutoScroll := renderLyricsBody(width-2, lyricsH-2, p, lyricsData, lyricsScrollOffset, autoScroll, styles)
+		lyricsLines, newOffset, newAutoScroll := renderLyricsBody(width-2, lyricsH-2, p, lyricsData, lyricsLoading, animFrame, lyricsScrollOffset, autoScroll, styles)
 		lyricsBox := components.RenderBoxWithTitle("LYRICS", lyricsLines, width, lyricsH, styles)
 
 		return vizBox + "\n" + lyricsBox, newOffset, newAutoScroll
 	}
 }
 
-func renderLyricsBody(textW, textH int, p player.AudioPlayer, data lyrics.LyricsData, offset int, autoScroll bool, styles theme.Styles) ([]string, int, bool) {
+func renderLyricsBody(textW, textH int, p player.AudioPlayer, data lyrics.LyricsData, isLoading bool, animFrame int, offset int, autoScroll bool, styles theme.Styles) ([]string, int, bool) {
 	if textW <= 0 || textH <= 0 {
 		return nil, offset, autoScroll
 	}
 
 	out := make([]string, textH)
 	newAutoScroll := autoScroll
+
+	if isLoading {
+		dotStep := (animFrame / 6) % 4
+		pulse := "["
+		for b := 0; b < 4; b++ {
+			if b == dotStep {
+				pulse += " ●"
+			} else {
+				pulse += " ○"
+			}
+		}
+		pulse += " ]"
+
+		msg := ":: Fetching lyrics..."
+		midY := textH / 2
+		if midY > 0 {
+			midY--
+		}
+		pulseY := midY + 2
+		if pulseY >= textH {
+			pulseY = textH - 1
+		}
+
+		msgPad := (textW - stringutil.Width(msg)) / 2
+		if msgPad < 0 {
+			msgPad = 0
+		}
+		pulsePad := (textW - stringutil.Width(pulse)) / 2
+		if pulsePad < 0 {
+			pulsePad = 0
+		}
+
+		for y := 0; y < textH; y++ {
+			switch y {
+			case midY:
+				out[y] = stringutil.SafeRepeat(" ", msgPad) + styles.VizMid.Render(msg)
+			case pulseY:
+				out[y] = stringutil.SafeRepeat(" ", pulsePad) + styles.ProgressBar.Render(pulse)
+			default:
+				out[y] = stringutil.SafeRepeat(" ", textW)
+			}
+		}
+		return out, offset, autoScroll
+	}
 
 	if data.HasSynced && len(data.SyncedLyrics) > 0 {
 		pos := p.Position()
