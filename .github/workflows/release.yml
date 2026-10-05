@@ -66,17 +66,13 @@ jobs:
 
       - name: Package archive
         run: |
-          ARCHIVE_NAME="vibe-${{ matrix.target.os }}-${{ matrix.target.arch }}.tar.gz"
-          cd build
-          tar -czvf "../${ARCHIVE_NAME}" vibe
-          cd ..
-          echo "ARCHIVE_NAME=${ARCHIVE_NAME}" >> $GITHUB_ENV
+          tar -czvf "vibe-${{ matrix.target.os }}-${{ matrix.target.arch }}.tar.gz" -C build vibe
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: vibe-${{ matrix.target.os }}-${{ matrix.target.arch }}
-          path: ${{ env.ARCHIVE_NAME }}
+          path: vibe-${{ matrix.target.os }}-${{ matrix.target.arch }}.tar.gz
 
   publish:
     name: Publish Release
