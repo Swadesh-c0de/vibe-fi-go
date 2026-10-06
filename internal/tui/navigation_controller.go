@@ -291,7 +291,7 @@ func (m *AppModel) handleSearchResultsKey(keyStr string) tea.Cmd {
 			hit := m.SearchResults[m.SelectionIndex]
 			var queue []playlist.PlaylistSong
 			for _, res := range m.SearchResults {
-				queue = append(queue, playlist.PlaylistSong{Title: res.Title, URL: res.URL, Duration: res.Duration})
+				queue = append(queue, playlist.PlaylistSong{Title: res.Title, URL: res.URL, Duration: res.Duration, Artist: res.Uploader})
 			}
 			m.PlayQueue = queue
 			m.QueueIndex = m.SelectionIndex
@@ -642,12 +642,13 @@ func (m *AppModel) handleFilterKey(msg tea.KeyMsg) tea.Cmd {
 					return nil
 				} else {
 					title := strings.TrimSuffix(item.Name, filepath.Ext(item.Name))
-					m.PlayQueue = []playlist.PlaylistSong{{Title: title, URL: item.Path, Duration: item.Duration}}
+					artist, _ := stringutil.CleanTrackTitle(title)
+					m.PlayQueue = []playlist.PlaylistSong{{Title: title, URL: item.Path, Duration: item.Duration, Artist: artist}}
 					m.QueueIndex = 0
 					m.IsPlayingFromPlaylist = false
 					m.SetMode(components.ViewModePlayback)
 					statusCmd := m.ShowStatus("Playing: " + title)
-					playCmd := m.StartTrackPlayback(title, item.Path, item.Duration, "")
+					playCmd := m.StartTrackPlayback(title, item.Path, item.Duration, artist)
 					return tea.Batch(statusCmd, playCmd)
 				}
 			}

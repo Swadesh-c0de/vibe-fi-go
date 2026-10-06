@@ -153,9 +153,41 @@ func NewAppModel(p player.AudioPlayer) *AppModel {
 
 // Init triggers initial commands and starts the 30 FPS tick loop.
 func (m *AppModel) Init() tea.Cmd {
-	return tea.Batch(
+	cmds := []tea.Cmd{
 		m.tickCmd(),
-	)
+	}
+
+	// If playback was initiated on launch (e.g. CLI track arguments),
+	// broadcast playback events, prefetch upcoming tracks, and fetch lyrics immediately.
+	if m.Mode == components.ViewModePlayback && m.QueueIndex >= 0 && m.QueueIndex < len(m.PlayQueue) {
+		first := m.PlayQueue[m.QueueIndex]
+		m.LastPlayedPath = first.URL
+		m.CurrentLyricsTitle = first.Title
+		m.LyricsScrollOffset = 0
+		m.LyricsAutoScroll = true
+
+		durSec := stringutil.ParseDuration(first.Duration)
+		artistHint := first.Artist
+
+		if m.EventBus != nil {
+			m.EventBus.Publish(eventbus.EventTrackStarted, eventbus.TrackStartedEvent{
+				Title:    first.Title,
+				Artist:   artistHint,
+				URL:      first.URL,
+				Duration: durSec,
+				Playlist: m.PlayingPlaylistName,
+			})
+			m.EventBus.Publish(eventbus.EventPlaybackStateChanged, eventbus.PlaybackStateChangedEvent{
+				State: eventbus.StatePlaying,
+			})
+		}
+
+		m.saveCurrentState()
+		m.prefetchUpcomingTracks()
+		cmds = append(cmds, m.fetchLyricsCmd(first.Title, first.URL, durSec, artistHint))
+	}
+
+	return tea.Batch(cmds...)
 }
 
 func (m *AppModel) tickCmd() tea.Cmd {

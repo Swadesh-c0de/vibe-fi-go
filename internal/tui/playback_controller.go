@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"strings"
+
 	tea "github.com/charmbracelet/bubbletea"
 	"vibe-fi/internal/eventbus"
 	"vibe-fi/internal/service/lyrics"
@@ -61,9 +63,13 @@ func (m *AppModel) fetchLyricsCmd(title, filePath string, duration float64, arti
 	mgr := m.LyricsManager
 
 	return func() tea.Msg {
+		cleanArtistHint := strings.TrimSpace(artistHint)
+		cleanArtistHint = strings.TrimSuffix(cleanArtistHint, " - Topic")
+		cleanArtistHint = strings.TrimSuffix(cleanArtistHint, " - topic")
+
 		artist, track := stringutil.CleanTrackTitle(title)
-		if artistHint != "" && artist == "" {
-			artist = artistHint
+		if cleanArtistHint != "" && artist == "" {
+			artist = cleanArtistHint
 		}
 		data, err := mgr.FetchLyricsWithFile(filePath, artist, track, duration)
 		return LyricsFetchedMsg{
@@ -128,7 +134,11 @@ func (m *AppModel) playNext() tea.Cmd {
 	}
 
 	statusCmd := m.ShowStatus("Playing: " + song.Title)
-	playCmd := m.StartTrackPlayback(song.Title, song.URL, song.Duration, m.PlayingPlaylistName)
+	artistHint := song.Artist
+	if artistHint == "" {
+		artistHint = m.PlayingPlaylistName
+	}
+	playCmd := m.StartTrackPlayback(song.Title, song.URL, song.Duration, artistHint)
 	return tea.Batch(statusCmd, playCmd)
 }
 
@@ -151,7 +161,11 @@ func (m *AppModel) playPrevious() tea.Cmd {
 	}
 
 	statusCmd := m.ShowStatus("Playing: " + song.Title)
-	playCmd := m.StartTrackPlayback(song.Title, song.URL, song.Duration, m.PlayingPlaylistName)
+	artistHint := song.Artist
+	if artistHint == "" {
+		artistHint = m.PlayingPlaylistName
+	}
+	playCmd := m.StartTrackPlayback(song.Title, song.URL, song.Duration, artistHint)
 	return tea.Batch(statusCmd, playCmd)
 }
 

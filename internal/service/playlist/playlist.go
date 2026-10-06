@@ -18,6 +18,7 @@ type PlaylistSong struct {
 	Title    string `json:"title"`
 	URL      string `json:"url"`
 	Duration string `json:"duration"`
+	Artist   string `json:"artist,omitempty"`
 }
 
 // Playlist represents an overview record of a playlist file.
@@ -75,10 +76,12 @@ func ParsePlaylistLine(line string) (PlaylistSong, bool) {
 		if title == "" && url == "" {
 			return PlaylistSong{}, false
 		}
+		artist, _ := stringutil.CleanTrackTitle(title)
 		return PlaylistSong{
 			Title:    title,
 			URL:      url,
 			Duration: duration,
+			Artist:   artist,
 		}, true
 	}
 
@@ -88,10 +91,12 @@ func ParsePlaylistLine(line string) (PlaylistSong, bool) {
 	if title == "" && url == "" {
 		return PlaylistSong{}, false
 	}
+	artist, _ := stringutil.CleanTrackTitle(title)
 	return PlaylistSong{
 		Title:    title,
 		URL:      url,
 		Duration: "--:--",
+		Artist:   artist,
 	}, true
 }
 
@@ -185,6 +190,9 @@ func (m *PlaylistManager) countSongs(path string) int {
 			count++
 		}
 	}
+	if err := scanner.Err(); err != nil {
+		return count
+	}
 	return count
 }
 
@@ -235,6 +243,9 @@ func (m *PlaylistManager) getPlaylistSongsLocked(name string) []PlaylistSong {
 		if song, ok := ParsePlaylistLine(scanner.Text()); ok {
 			songs = append(songs, song)
 		}
+	}
+	if err := scanner.Err(); err != nil {
+		return songs
 	}
 	return songs
 }

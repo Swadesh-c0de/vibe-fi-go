@@ -115,6 +115,10 @@ func SearchYouTube(query string, limit int) ([]SearchResult, error) {
 		}
 	}
 
+	if err := scanner.Err(); err != nil {
+		return results, err
+	}
+
 	return results, nil
 }
 

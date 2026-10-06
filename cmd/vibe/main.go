@@ -119,7 +119,8 @@ func main() {
 				if walkErr == nil && !d.IsDir() && library.IsAudioFile(path) {
 					absPath, _ := filepath.Abs(path)
 					title := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
-					initialQueue = append(initialQueue, playlist.PlaylistSong{Title: title, URL: absPath})
+					artist, _ := stringutil.CleanTrackTitle(title)
+					initialQueue = append(initialQueue, playlist.PlaylistSong{Title: title, URL: absPath, Artist: artist})
 				}
 				return nil
 			})
@@ -127,7 +128,8 @@ func main() {
 			// Single audio file
 			absPath, _ := filepath.Abs(input)
 			title := strings.TrimSuffix(filepath.Base(input), filepath.Ext(input))
-			initialQueue = append(initialQueue, playlist.PlaylistSong{Title: title, URL: absPath})
+			artist, _ := stringutil.CleanTrackTitle(title)
+			initialQueue = append(initialQueue, playlist.PlaylistSong{Title: title, URL: absPath, Artist: artist})
 		} else if stringutil.IsURL(input) {
 			if !net.IsOnline() {
 				fmt.Fprintln(os.Stderr, ":: Error: Internet connection required to stream URL.")
@@ -147,6 +149,7 @@ func main() {
 					Title:    title,
 					URL:      info.StreamURL,
 					Duration: stringutil.FormatDuration(info.Duration),
+					Artist:   info.Artist,
 				})
 			}
 		} else {
@@ -163,6 +166,7 @@ func main() {
 						Title:    hit.Title,
 						URL:      hit.URL,
 						Duration: hit.Duration,
+						Artist:   hit.Uploader,
 					})
 				}
 			}
@@ -173,6 +177,8 @@ func main() {
 		app.PlayQueue = initialQueue
 		app.QueueIndex = 0
 		first := initialQueue[0]
+		app.LastPlayedPath = first.URL
+		app.CurrentLyricsTitle = first.Title
 		_ = mpvPlayer.Load(first.URL, "replace")
 		if first.Title != "" {
 			_ = mpvPlayer.SetProperty("force-media-title", first.Title)
@@ -263,8 +269,10 @@ func main() {
 		first := initialQueue[0]
 		if app.EventBus != nil {
 			app.EventBus.Publish(eventbus.EventTrackStarted, eventbus.TrackStartedEvent{
-				Title: first.Title,
-				URL:   first.URL,
+				Title:    first.Title,
+				Artist:   first.Artist,
+				URL:      first.URL,
+				Duration: stringutil.ParseDuration(first.Duration),
 			})
 		}
 	}
