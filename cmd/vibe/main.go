@@ -30,7 +30,7 @@ import (
 
 func printHelp(progName string) {
 	fmt.Printf("Usage: %s [OPTIONS] [FILE | URL | QUERY]\n\n", progName)
-	fmt.Println("Vibe-Fi: Free, open-source terminal music player for Linux & macOS.")
+	fmt.Println("Vibe-Fi v2: Free, open-source terminal music player for Linux & macOS.")
 	fmt.Println()
 	fmt.Println("Options:")
 	fmt.Printf("  %s --help | -h          Show this help message\n", progName)
@@ -80,7 +80,7 @@ func main() {
 			printHelp(progName)
 			return
 		case "-v", "--version":
-			fmt.Printf("Vibe-Fi version %s (Go, Bubble Tea, libmpv)\n", config.Version)
+			fmt.Printf("Vibe-Fi v%s (Go, Bubble Tea, libmpv)\n", config.Version)
 			return
 		case "-b", "--bottle":
 			printBottleStatus()

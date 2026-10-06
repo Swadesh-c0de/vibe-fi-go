@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# Vibe-Fi (Go Edition) Universal Installer
+# Vibe-Fi v2 (Go Edition) Universal Installer
 # Fast, clean, modern music player for terminal
 # Supports instant pre-built binary installation or source build
 # ==============================================================================
@@ -18,7 +18,7 @@ BOLD='\033[1m'
 NC='\033[0m' # No Color
 
 echo -e "${CYAN}======================================${NC}"
-echo -e "${CYAN}${BOLD}       Vibe-Fi (Go Edition)${NC}"
+echo -e "${CYAN}${BOLD}     Vibe-Fi v2 (Go Edition)${NC}"
 echo -e "${CYAN}======================================${NC}"
 echo ""
 

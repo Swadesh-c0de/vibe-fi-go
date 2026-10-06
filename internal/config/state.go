@@ -104,6 +104,10 @@ func LoadState() (SessionState, error) {
 		}
 	}
 
+	if err := scanner.Err(); err != nil {
+		return state, err
+	}
+
 	return state, nil
 }
 

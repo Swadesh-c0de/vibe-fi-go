@@ -3,7 +3,7 @@
 <br/>
 
 <picture>
-  <img alt="Vibe-Fi" src="assets/logo.svg" width="220" />
+  <img alt="Vibe-Fi v2" src="assets/logo.svg" width="220" />
 </picture>
 
 ### The modern, lightweight terminal music player for Linux & macOS.
@@ -11,6 +11,7 @@
 *Stream YouTube, play local lossless audio, view live spectrum visualizers, and follow synchronized lyrics.*
 
 <p align="center">
+  <img src="https://img.shields.io/badge/Version-v2.0.0-6c8cad?style=flat-square" alt="Version v2.0.0" />
   <a href="https://go.dev"><img src="https://img.shields.io/badge/Go-1.22+-4a637d?style=flat-square&logo=go&logoColor=white" alt="Go Version" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-6c8cad?style=flat-square" alt="License: MIT" /></a>
   <a href="https://github.com/Swadesh-c0de/vibe-fi-go/releases"><img src="https://img.shields.io/github/v/release/Swadesh-c0de/vibe-fi-go?style=flat-square&color=7aa5b3&label=Release" alt="Latest Release" /></a>
@@ -198,22 +199,28 @@ Vibe-Fi is built around Charm's [Bubble Tea](https://github.com/charmbracelet/bu
 vibe-fi-go/
 ├── cmd/vibe/               # Entrypoint & CLI arguments
 ├── internal/
-│   ├── config/             # Session state persistence (~/.vibe-fi/state.ini)
+│   ├── config/             # Session state & path resolution (~/.vibe-fi/state.ini)
 │   ├── eventbus/           # Internal decoupled pub/sub event bus
 │   ├── integration/
 │   │   ├── discord/        # Discord Rich Presence IPC client
 │   │   └── mpris/          # Linux D-Bus MPRIS hardware media key controller
-│   ├── player/             # libmpv CGO bindings & audio level analytics
+│   ├── player/             # libmpv CGO bindings & audio level analytics (RMS/Peak)
 │   ├── service/
 │   │   ├── library/        # Recursive filesystem audio scanner
 │   │   ├── lyrics/         # lrclib.net fetcher, companion .lrc parser & cache
 │   │   ├── playlist/       # Plain-text playlist parser and manager
-│   │   └── search/         # yt-dlp search engine & stream URL cache
-│   └── tui/
-│       ├── components/     # UI boxes, modals, status bars, help text
-│       ├── theme/          # Color schemes, Lip Gloss styles & JSON loader
-│       ├── views/          # Intro, Playback, Queue, Library, Playlists, Lyrics
-│       └── visualizer/     # Cava spectrum math, Monstercat smoothing & blocks
+│   │   ├── search/         # yt-dlp search engine & stream URL cache
+│   │   └── updater/        # Background GitHub release checker & updater
+│   ├── tui/
+│   │   ├── components/     # UI boxes, modals, status bars, help text
+│   │   ├── theme/          # Color schemes, Lip Gloss styles & JSON loader
+│   │   ├── views/          # Intro, Playback, Queue, Library, Playlists, Search, Lyrics
+│   │   └── visualizer/     # Cava spectrum math, Monstercat smoothing & blocks
+│   └── utils/
+│       ├── bottle/         # Isolated runtime dependency manager (yt-dlp)
+│       ├── mem/            # Process RSS memory metrics (Linux & macOS)
+│       ├── net/            # HTTP utilities & connectivity checks
+│       └── stringutil/     # Unicode terminal width & text layout helpers
 └── assets/                 # Logo and screenshot assets
 ```
 

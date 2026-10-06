@@ -1,6 +1,6 @@
-# Contributing to Vibe-Fi
+# Contributing to Vibe-Fi v2
 
-Thanks for checking out the source. Vibe-Fi is written in Go, using Charm's [Bubble Tea](https://github.com/charmbracelet/bubbletea) for the terminal UI and CGO bindings to **`libmpv`** for audio playback.
+Thanks for checking out the source. Vibe-Fi v2 is the rewritten Go edition (transitioned from the original C++ player), built on Charm's [Bubble Tea](https://github.com/charmbracelet/bubbletea) for the terminal UI and CGO bindings to **`libmpv`** for audio playback.
 
 Whether you're fixing a bug, adding a new theme, or improving audio performance, this guide covers the local setup, codebase layout, and pull request workflow.
 
@@ -67,31 +67,47 @@ cmd/vibe/
 └── main.go                     # Entry point, flag parsing, player initialization
 
 internal/
-├── player/
-│   ├── player.go               # AudioPlayer interface & event definitions
-│   └── mpv.go                  # libmpv CGO wrapper & live acoustic stats (RMS/Peak)
-├── service/
-│   ├── search/                 # yt-dlp search engine & in-memory stream cache
-│   ├── lyrics/                 # lrclib.net fetcher, companion .lrc parser & disk cache
-│   ├── playlist/               # Plain-text playlist storage (~/.vibe-fi/playlists/)
-│   └── library/                # Recursive filesystem audio scanner
+├── config/
+│   ├── config.go               # Base directory paths & user settings
+│   └── state.go                # Session persistence (~/.vibe-fi/state.ini)
+├── eventbus/
+│   └── eventbus.go             # Pub/Sub event bus for cross-subsystem messaging
 ├── integration/
-│   ├── mpris/                  # Linux D-Bus MPRIS media keys & playerctl integration
-│   └── discord/                # Discord Rich Presence IPC socket client
-└── tui/
-    ├── app.go                  # Root Bubble Tea model & event loop
-    ├── navigation_controller.go# View routing, search results, and confirmation modals
-    ├── playback_controller.go  # Playback controls, seek, volume, and lyrics requests
-    ├── components/             # Reusable UI widgets (boxes, status bar, modals, help text)
-    ├── theme/                  # Theme definitions, Lip Gloss styles, themes.json loader
-    ├── views/                  # View rendering (Playback, Library, Playlists, Queue, Lyrics)
-    └── visualizer/             # Cava spectrum math, Monstercat smoothing & block rendering
+│   ├── discord/
+│   │   └── discord.go          # Discord Rich Presence IPC socket client
+│   └── mpris/
+│       └── mpris.go            # Linux D-Bus MPRIS media keys & playerctl integration
+├── player/
+│   ├── player.go               # AudioPlayer interface & playback event definitions
+│   ├── mpv.go                  # libmpv CGO wrapper & live acoustic stats (RMS/Peak)
+│   └── mock.go                 # Mock player implementation for headless testing
+├── service/
+│   ├── library/                # Recursive filesystem audio scanner & metadata loader
+│   ├── lyrics/                 # lrclib.net fetcher, companion .lrc parser & disk cache
+│   ├── playlist/               # Plain-text playlist manager (~/.vibe-fi/playlists/)
+│   ├── search/                 # yt-dlp search engine & in-memory stream URL cache
+│   └── updater/                # Background GitHub release checker & binary updater
+├── tui/
+│   ├── app.go                  # Root Bubble Tea model & event loop
+│   ├── messages.go             # Bubble Tea TEA message definitions & async commands
+│   ├── navigation_controller.go# View routing, search results, and confirmation modals
+│   ├── playback_controller.go  # Playback controls, seek, volume, and queue actions
+│   ├── components/             # Reusable UI widgets (border, helpbar, modal, statusbar)
+│   ├── theme/                  # Theme definitions, Lip Gloss styles, themes.json loader
+│   ├── views/                  # Stateless view renderers (Playback, Library, Queue, etc.)
+│   └── visualizer/             # Cava spectrum math, Monstercat smoothing & block rendering
+└── utils/
+    ├── bottle/                 # Isolated runtime dependency installer (yt-dlp)
+    ├── mem/                    # Platform process RSS memory stats (Linux & macOS)
+    ├── net/                    # Network connectivity checks & HTTP clients
+    └── stringutil/             # Unicode rune width & terminal text layout helpers
 ```
 
 #### How State Flows
-1. **Audio Engine (`internal/player/`)**: `MPVPlayer` manages the `libmpv` instance and polls playback events. An `astats` audio filter continuously computes live RMS, peak levels, and zero-crossing rates for the visualizer.
-2. **Controllers (`internal/tui/`)**: User input in `app.go` delegates to `navigation_controller.go` for view switching/modals and `playback_controller.go` for player interaction.
-3. **Views (`internal/tui/views/`)**: Views are stateless rendering functions that take immutable view state structs and return styled strings.
+1. **Audio Engine (`internal/player/`)**: `MPVPlayer` manages the `libmpv` instance via CGO and polls playback events. An `astats` audio filter continuously computes real-time RMS, peak levels, and zero-crossing rates for the visualizer.
+2. **Event Bus (`internal/eventbus/`)**: A decoupled pub/sub bus distributes audio events (state changes, progress ticks, track finishes) across the TUI, Discord RPC, and MPRIS without tight coupling.
+3. **Controllers (`internal/tui/`)**: User input received in `app.go` delegates to `navigation_controller.go` for view transitions/dialogs and `playback_controller.go` for player interaction, queue management, and lyric fetching.
+4. **Views (`internal/tui/views/`)**: Views are stateless rendering functions that take immutable view state structs and return styled strings built with Lip Gloss.
 
 ---
 

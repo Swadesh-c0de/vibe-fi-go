@@ -6,7 +6,7 @@ import (
 )
 
 const (
-	Version           = "1.1.3"
+	Version           = "2.0.0"
 	DefaultTheme      = "Midnight"
 	DefaultVisualizer = 0 // Cava Wave
 )
