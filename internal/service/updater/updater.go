@@ -28,7 +28,7 @@ func CheckUpdate() (string, error) {
 	}
 
 	client := &http.Client{Timeout: 5 * time.Second}
-	req, err := http.NewRequest("GET", "https://api.github.com/repos/Swadesh-c0de/vibe-fi/releases/latest", nil)
+	req, err := http.NewRequest("GET", "https://api.github.com/repos/Swadesh-c0de/vibe-fi-go/releases/latest", nil)
 	if err != nil {
 		return "", err
 	}

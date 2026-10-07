@@ -11,7 +11,7 @@
 *Stream YouTube, play local lossless audio, view live spectrum visualizers, and follow synchronized lyrics.*
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Version-v2.0.0-6c8cad?style=flat-square" alt="Version v2.0.0" />
+  <img src="https://img.shields.io/badge/Version-v2-6c8cad?style=flat-square" alt="Version v2" />
   <a href="https://go.dev"><img src="https://img.shields.io/badge/Go-1.22+-4a637d?style=flat-square&logo=go&logoColor=white" alt="Go Version" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-6c8cad?style=flat-square" alt="License: MIT" /></a>
   <a href="https://github.com/Swadesh-c0de/vibe-fi-go/releases"><img src="https://img.shields.io/github/v/release/Swadesh-c0de/vibe-fi-go?style=flat-square&color=7aa5b3&label=Release" alt="Latest Release" /></a>
@@ -36,7 +36,14 @@
 
 <br/>
 
-<img src="assets/showcase.png" alt="Vibe-Fi in action" width="100%" />
+<img src="assets/showcase.png" alt="Vibe-Fi showcase" width="100%" />
+
+<br/>
+
+--- 
+
+<h3 align="left"><em>Quick Demo</em></h3>
+<img src="assets/demo.gif" alt="Vibe-Fi in action" width="100%" />
 
 </div>
 
@@ -229,6 +236,8 @@ vibe-fi-go/
 ### Contributing
 
 Contributions, bug fixes, and new theme palettes are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for local development setup, code structure details, and pull request guidelines.
+
+If you enjoy using Vibe-Fi, consider dropping a star ⭐ on GitHub — it helps more terminal music listeners discover the project.
 
 ---
 
