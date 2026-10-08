@@ -4,3 +4,5 @@ build/
 .DS_Store
 /vibe
 /vibe.exe
+*_test.go
+
