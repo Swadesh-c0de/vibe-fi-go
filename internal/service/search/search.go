@@ -52,6 +52,7 @@ func SearchYouTube(query string, limit int) ([]SearchResult, error) {
 		"%(title)s|%(uploader)s|%(webpage_url)s|%(duration_string)s",
 		"--flat-playlist",
 		"--no-warnings",
+		"--extractor-args", "youtube:player_client=android,web",
 		searchTerm,
 	}
 
@@ -142,6 +143,7 @@ func ResolveStreamInfo(url string) (StreamInfo, error) {
 		"--print", "%(title)s|%(uploader)s|%(duration_string)s",
 		"-g",
 		"--no-warnings",
+		"--extractor-args", "youtube:player_client=android,web",
 		url,
 	}
 

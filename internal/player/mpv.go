@@ -174,7 +174,8 @@ func NewMPVPlayer() (*MPVPlayer, error) {
 	p.setOption("demuxer-max-back-bytes", "128KiB")
 	p.setOption("demuxer-readahead-secs", "5")
 
-	// Locate yt-dlp
+	// Locate yt-dlp & configure anti-bot extractor options
+	p.setOption("ytdl-raw-options", "extractor-args=youtube:player_client=android")
 	if ytdlPath := bottle.FindExecutable("yt-dlp"); ytdlPath != "" {
 		p.setOption("script-opts", "ytdl_hook-ytdl_path="+ytdlPath)
 	}

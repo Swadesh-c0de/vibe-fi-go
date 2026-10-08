@@ -54,7 +54,11 @@ func EnsureBottledYtdlp() error {
 		exeName = "yt-dlp.exe"
 		downloadURL = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe"
 	default:
-		downloadURL = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp"
+		if runtime.GOARCH == "arm64" {
+			downloadURL = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux_aarch64"
+		} else {
+			downloadURL = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux"
+		}
 	}
 
 	target := filepath.Join(binDir, exeName)
