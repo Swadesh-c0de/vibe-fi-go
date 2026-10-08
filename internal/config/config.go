@@ -3,7 +3,30 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"sync"
 )
+
+var (
+	dirsMu      sync.RWMutex
+	ensuredDirs = make(map[string]bool)
+)
+
+func ensureDir(dir string) string {
+	dirsMu.RLock()
+	if ensuredDirs[dir] {
+		dirsMu.RUnlock()
+		return dir
+	}
+	dirsMu.RUnlock()
+
+	dirsMu.Lock()
+	defer dirsMu.Unlock()
+	if !ensuredDirs[dir] {
+		_ = os.MkdirAll(dir, 0755)
+		ensuredDirs[dir] = true
+	}
+	return dir
+}
 
 const (
 	Version           = "2.0.0"
@@ -18,29 +41,25 @@ func GetVibeDir() string {
 		home = "."
 	}
 	dir := filepath.Join(home, ".vibe-fi")
-	_ = os.MkdirAll(dir, 0755)
-	return dir
+	return ensureDir(dir)
 }
 
 // GetPlaylistsDir returns ~/.vibe-fi/playlists.
 func GetPlaylistsDir() string {
 	dir := filepath.Join(GetVibeDir(), "playlists")
-	_ = os.MkdirAll(dir, 0755)
-	return dir
+	return ensureDir(dir)
 }
 
 // GetCacheDir returns ~/.vibe-fi/cache.
 func GetCacheDir() string {
 	dir := filepath.Join(GetVibeDir(), "cache")
-	_ = os.MkdirAll(dir, 0755)
-	return dir
+	return ensureDir(dir)
 }
 
 // GetLyricsCacheDir returns ~/.vibe-fi/cache/lyrics.
 func GetLyricsCacheDir() string {
 	dir := filepath.Join(GetCacheDir(), "lyrics")
-	_ = os.MkdirAll(dir, 0755)
-	return dir
+	return ensureDir(dir)
 }
 
 // GetBottleDir returns $VIBE_BOTTLE_DIR or ~/.vibe-fi/bottle.

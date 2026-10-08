@@ -45,7 +45,10 @@ func (c *Client) connect() {
 	}
 
 	for _, p := range sockPaths {
-		conn, err := net.DialTimeout("unix", p, 500*time.Millisecond)
+		if _, err := os.Stat(p); err != nil {
+			continue
+		}
+		conn, err := net.DialTimeout("unix", p, 250*time.Millisecond)
 		if err == nil {
 			c.conn = conn
 			c.connected = true

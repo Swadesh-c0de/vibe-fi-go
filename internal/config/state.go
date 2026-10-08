@@ -121,29 +121,30 @@ func SaveState(state SessionState) error {
 	defer f.Close()
 
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("path=%s\n", state.Path))
-	sb.WriteString(fmt.Sprintf("title=%s\n", state.Title))
-	sb.WriteString(fmt.Sprintf("position=%.2f\n", state.Position))
-	sb.WriteString(fmt.Sprintf("volume=%d\n", state.Volume))
-	sb.WriteString(fmt.Sprintf("playlist=%s\n", state.Playlist))
-	sb.WriteString(fmt.Sprintf("index=%d\n", state.Index))
-	sb.WriteString(fmt.Sprintf("theme=%s\n", state.Theme))
-	sb.WriteString(fmt.Sprintf("visualizer=%d\n", state.Visualizer))
+	sb.Grow(512)
+	fmt.Fprintf(&sb, "path=%s\n", state.Path)
+	fmt.Fprintf(&sb, "title=%s\n", state.Title)
+	fmt.Fprintf(&sb, "position=%.2f\n", state.Position)
+	fmt.Fprintf(&sb, "volume=%d\n", state.Volume)
+	fmt.Fprintf(&sb, "playlist=%s\n", state.Playlist)
+	fmt.Fprintf(&sb, "index=%d\n", state.Index)
+	fmt.Fprintf(&sb, "theme=%s\n", state.Theme)
+	fmt.Fprintf(&sb, "visualizer=%d\n", state.Visualizer)
 
 	autoplayVal := "0"
 	if state.Autoplay {
 		autoplayVal = "1"
 	}
-	sb.WriteString(fmt.Sprintf("autoplay=%s\n", autoplayVal))
+	fmt.Fprintf(&sb, "autoplay=%s\n", autoplayVal)
 
 	if state.AvailableUpdate != "" {
-		sb.WriteString(fmt.Sprintf("available_update=%s\n", state.AvailableUpdate))
+		fmt.Fprintf(&sb, "available_update=%s\n", state.AvailableUpdate)
 	}
 	if state.LastUpdateCheck > 0 {
-		sb.WriteString(fmt.Sprintf("last_update_check=%d\n", state.LastUpdateCheck))
+		fmt.Fprintf(&sb, "last_update_check=%d\n", state.LastUpdateCheck)
 	}
 	if state.UpdateDismissedVersion != "" {
-		sb.WriteString(fmt.Sprintf("update_dismissed=%s\n", state.UpdateDismissedVersion))
+		fmt.Fprintf(&sb, "update_dismissed=%s\n", state.UpdateDismissedVersion)
 	}
 
 	_, err = f.WriteString(sb.String())

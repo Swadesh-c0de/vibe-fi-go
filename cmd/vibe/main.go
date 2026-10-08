@@ -296,8 +296,8 @@ func main() {
 
 	if restoreSession {
 		go func() {
-			time.Sleep(100 * time.Millisecond)
-			p.Send(tui.StatusMsg{Message: "Restoring session..."})
+			time.Sleep(80 * time.Millisecond)
+			p.Send(tui.RestoreSessionMsg{})
 		}()
 	} else if !startPlayback && len(playbackInputs) == 0 {
 		app.SetMode(components.ViewModeIntro)

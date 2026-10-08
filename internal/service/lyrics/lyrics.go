@@ -3,7 +3,6 @@ package lyrics
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -53,10 +52,14 @@ func NewLyricsManager() *LyricsManager {
 	}
 }
 
+var (
+	cacheKeyRegex  = regexp.MustCompile(`[^a-z0-9_-]+`)
+	timestampRegex = regexp.MustCompile(`^\[(\d{2}):(\d{2}(?:\.\d+)?)\](.*)$`)
+)
+
 func (m *LyricsManager) cacheKey(artist, title string) string {
 	combined := fmt.Sprintf("%s_%s", strings.ToLower(artist), strings.ToLower(title))
-	reg := regexp.MustCompile(`[^a-z0-9_-]+`)
-	key := reg.ReplaceAllString(combined, "+")
+	key := cacheKeyRegex.ReplaceAllString(combined, "+")
 	return filepath.Join(m.cacheDir, key+".json")
 }
 
@@ -85,8 +88,6 @@ func (m *LyricsManager) saveToCache(artist, title string, data LyricsData) {
 	defer f.Close()
 	_ = json.NewEncoder(f).Encode(data)
 }
-
-var timestampRegex = regexp.MustCompile(`^\[(\d{2}):(\d{2}(?:\.\d+)?)\](.*)$`)
 
 // ParseSyncedLyrics parses raw LRC formatted string into LyricLine slice.
 func ParseSyncedLyrics(lrc string) []LyricLine {
@@ -245,13 +246,8 @@ func (m *LyricsManager) fetchExact(artist, title string, duration float64) (Lyri
 		return data, fmt.Errorf("status %d", resp.StatusCode)
 	}
 
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return data, err
-	}
-
 	var res lrclibResponse
-	if err := json.Unmarshal(body, &res); err != nil {
+	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
 		return data, err
 	}
 
@@ -286,13 +282,8 @@ func (m *LyricsManager) fetchSearch(query string) (LyricsData, error) {
 		return data, fmt.Errorf("status %d", resp.StatusCode)
 	}
 
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return data, err
-	}
-
 	var candidates []lrclibResponse
-	if err := json.Unmarshal(body, &candidates); err != nil || len(candidates) == 0 {
+	if err := json.NewDecoder(resp.Body).Decode(&candidates); err != nil || len(candidates) == 0 {
 		return data, fmt.Errorf("no results")
 	}
 

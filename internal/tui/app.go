@@ -434,9 +434,10 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.ShowStatus(fmt.Sprintf("Update %s available! Run vibe --update to upgrade.", msg.Version))
 
 	case StatusMsg:
-		statusCmd := m.ShowStatus(msg.Message)
-		playCmd := m.LoadState()
-		return m, tea.Batch(statusCmd, playCmd)
+		return m, m.ShowStatus(msg.Message)
+
+	case RestoreSessionMsg:
+		return m, m.LoadState()
 
 	case MprisActionMsg:
 		return m, m.handleMprisAction(msg.Action)

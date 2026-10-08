@@ -726,8 +726,9 @@ func (m *AppModel) handleFilterKey(msg tea.KeyMsg) tea.Cmd {
 		}
 
 	case "backspace":
-		if len(m.FilterQuery) > 0 {
-			m.FilterQuery = m.FilterQuery[:len(m.FilterQuery)-1]
+		runes := []rune(m.FilterQuery)
+		if len(runes) > 0 {
+			m.FilterQuery = string(runes[:len(runes)-1])
 			m.SelectionIndex = 0
 			m.ScrollOffset = 0
 		} else {

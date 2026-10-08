@@ -7,8 +7,11 @@ import (
 	"vibe-fi/internal/service/search"
 )
 
-// TickMsg fires at ~30 FPS for visualizer and audio state polling.
+// TickMsg fires at ~60 FPS (16ms) for real-time visualizer physics and audio polling.
 type TickMsg time.Time
+
+// RestoreSessionMsg requests restoring the last saved playback session.
+type RestoreSessionMsg struct{}
 
 // StatusMsg displays a temporary message in the help bar for 3 seconds.
 type StatusMsg struct {

@@ -250,6 +250,7 @@ func OverlayCenter(box string, termW, termH, boxW, boxH int) string {
 	startX := (termW - boxW) / 2
 
 	var out strings.Builder
+	out.Grow((termW + 1) * termH)
 	for y := 0; y < termH; y++ {
 		if y >= startY && y < startY+len(boxLines) {
 			bLine := boxLines[y-startY]

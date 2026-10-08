@@ -46,6 +46,7 @@ func RenderBoxWithTitle(title string, innerLines []string, width, height int, st
 	innerH := height - 2
 
 	var out strings.Builder
+	out.Grow((width + 4) * height * 2)
 
 	// 1. Top border: ┌─ TITLE ──────┐
 	out.WriteString(tl)

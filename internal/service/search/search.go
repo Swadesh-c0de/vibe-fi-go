@@ -2,6 +2,7 @@ package search
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"fmt"
 	"os/exec"
@@ -65,7 +66,7 @@ func SearchYouTube(query string, limit int) ([]SearchResult, error) {
 		return results, err
 	}
 
-	scanner := bufio.NewScanner(strings.NewReader(string(out)))
+	scanner := bufio.NewScanner(bytes.NewReader(out))
 	for scanner.Scan() {
 		line := strings.TrimRight(scanner.Text(), "\r\n")
 		if line == "" {
