@@ -218,7 +218,7 @@ echo -e "${GREEN}Installed:${NC} ${TARGET_DIR}/vibe"
 
 # Verify Runtime Dependencies (libmpv)
 if [ "$NO_DEPS" = false ] && [ -f "${TARGET_DIR}/vibe" ]; then
-    if "${TARGET_DIR}/vibe" --version 2>&1 | grep -qi "libmpv"; then
+    if ! "${TARGET_DIR}/vibe" --version >/dev/null 2>&1; then
         echo ""
         echo -e "${YELLOW}:: Notice: Runtime dependency 'libmpv' is missing.${NC}"
 
