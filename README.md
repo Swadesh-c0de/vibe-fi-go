@@ -93,6 +93,13 @@
 curl -fsSL https://raw.githubusercontent.com/Swadesh-c0de/vibe-fi-go/main/install.sh | bash
 ```
 
+> [!TIP]
+> **Prerequisites**: Vibe-Fi links against `libmpv` for hardware-accelerated audio playback. The installer automatically resolves it on supported distributions, or you can install it manually:
+> - **Ubuntu / Debian**: `sudo apt install -y libmpv2` (or `mpv`)
+> - **Arch Linux**: `sudo pacman -S mpv`
+> - **Fedora**: `sudo dnf install mpv-libs`
+> - **macOS**: `brew install mpv`
+
 Or build from source:
 
 ```bash

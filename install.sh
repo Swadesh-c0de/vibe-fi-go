@@ -27,6 +27,7 @@ FORCE_BUILD=false
 GLOBAL_INSTALL=false
 UNINSTALL=false
 VERSION="latest"
+NO_DEPS=false
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -45,6 +46,22 @@ while [[ $# -gt 0 ]]; do
         --version|-v)
             VERSION="$2"
             shift 2
+            ;;
+        --no-deps)
+            NO_DEPS=true
+            shift
+            ;;
+        --help|-h)
+            echo "Usage: ./install.sh [OPTIONS]"
+            echo ""
+            echo "Options:"
+            echo "  --global, -g    Install system-wide to /usr/local/bin"
+            echo "  --build, -b     Force building from source"
+            echo "  --version, -v   Specify release tag to install (e.g. v2.0.0)"
+            echo "  --no-deps       Skip automatic runtime dependency checks"
+            echo "  --uninstall, -u Remove vibe binary"
+            echo "  --help, -h      Show this help message"
+            exit 0
             ;;
         *)
             shift
@@ -198,6 +215,76 @@ fi
 # Post-Install Verification
 echo ""
 echo -e "${GREEN}Installed:${NC} ${TARGET_DIR}/vibe"
+
+# Verify Runtime Dependencies (libmpv)
+if [ "$NO_DEPS" = false ] && [ -f "${TARGET_DIR}/vibe" ]; then
+    if "${TARGET_DIR}/vibe" --version 2>&1 | grep -qi "libmpv"; then
+        echo ""
+        echo -e "${YELLOW}:: Notice: Runtime dependency 'libmpv' is missing.${NC}"
+
+        SUDO=""
+        if [ "$EUID" -ne 0 ] && command -v sudo >/dev/null 2>&1; then
+            SUDO="sudo"
+        fi
+
+        AUTO_INSTALLED=false
+        if [ "$EUID" -eq 0 ] || [ -n "$SUDO" ]; then
+            if command -v apt-get >/dev/null 2>&1; then
+                echo -e "${CYAN}:: Installing libmpv via apt...${NC}"
+                if $SUDO apt-get update -qq && ($SUDO apt-get install -y --no-install-recommends libmpv2 2>/dev/null || $SUDO apt-get install -y --no-install-recommends mpv 2>/dev/null); then
+                    AUTO_INSTALLED=true
+                fi
+            elif command -v pacman >/dev/null 2>&1; then
+                echo -e "${CYAN}:: Installing mpv via pacman...${NC}"
+                if $SUDO pacman -Sy --noconfirm mpv; then
+                    AUTO_INSTALLED=true
+                fi
+            elif command -v dnf >/dev/null 2>&1; then
+                echo -e "${CYAN}:: Installing mpv-libs via dnf...${NC}"
+                if $SUDO dnf install -y mpv-libs 2>/dev/null || $SUDO dnf install -y mpv 2>/dev/null; then
+                    AUTO_INSTALLED=true
+                fi
+            elif command -v zypper >/dev/null 2>&1; then
+                echo -e "${CYAN}:: Installing libmpv2 via zypper...${NC}"
+                if $SUDO zypper install -y libmpv2 2>/dev/null || $SUDO zypper install -y mpv 2>/dev/null; then
+                    AUTO_INSTALLED=true
+                fi
+            elif command -v apk >/dev/null 2>&1; then
+                echo -e "${CYAN}:: Installing mpv-libs via apk...${NC}"
+                if $SUDO apk add mpv-libs 2>/dev/null; then
+                    AUTO_INSTALLED=true
+                fi
+            elif [ "$OS" = "darwin" ] && command -v brew >/dev/null 2>&1; then
+                echo -e "${CYAN}:: Installing mpv via Homebrew...${NC}"
+                if brew install mpv; then
+                    AUTO_INSTALLED=true
+                fi
+            fi
+        fi
+
+        if [ "$AUTO_INSTALLED" = true ]; then
+            echo -e "${GREEN}[✔] Successfully installed libmpv.${NC}"
+        else
+            echo -e "${YELLOW}[!] Action Required: Install libmpv using your package manager:${NC}"
+            if command -v apt-get >/dev/null 2>&1; then
+                echo -e "    ${BOLD}apt update && apt install -y libmpv2${NC} (or mpv)"
+            elif command -v pacman >/dev/null 2>&1; then
+                echo -e "    ${BOLD}sudo pacman -S mpv${NC}"
+            elif command -v dnf >/dev/null 2>&1; then
+                echo -e "    ${BOLD}sudo dnf install mpv-libs${NC}"
+            elif command -v zypper >/dev/null 2>&1; then
+                echo -e "    ${BOLD}sudo zypper install libmpv2${NC}"
+            elif command -v apk >/dev/null 2>&1; then
+                echo -e "    ${BOLD}apk add mpv-libs${NC}"
+            elif [ "$OS" = "darwin" ]; then
+                echo -e "    ${BOLD}brew install mpv${NC}"
+            else
+                echo -e "    ${BOLD}Please install libmpv / mpv for your system.${NC}"
+            fi
+            echo ""
+        fi
+    fi
+fi
 
 if [ "$TARGET_DIR" = "${HOME}/.local/bin" ]; then
     if [[ ":$PATH:" != *":${TARGET_DIR}:"* ]]; then
