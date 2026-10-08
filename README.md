@@ -31,7 +31,8 @@
   <img src="https://img.shields.io/badge/Audio_Core-libmpv_24--bit-6c8cad?style=flat-square" alt="Audio Core" />
   <img src="https://img.shields.io/badge/Streaming-yt--dlp-7aa5b3?style=flat-square" alt="Streaming" />
   <img src="https://img.shields.io/badge/Lyrics-Synced_LRC-6b947c?style=flat-square" alt="Lyrics" />
-  <img src="https://img.shields.io/badge/RAM-~25MB_idle-4a637d?style=flat-square" alt="Memory" />
+  <img src="https://img.shields.io/badge/RAM-~60MB_idle-4a637d?style=flat-square" alt="Memory" />
+  <img src="https://img.shields.io/badge/Visualizer-60_FPS-c29b61?style=flat-square" alt="Visualizer" />
 </p>
 
 <br/>
@@ -69,7 +70,7 @@
     </td>
     <td width="50%" valign="top">
       <h4>Audio Spectrum Visualizer</h4>
-      <p>Real-time 32–64 bar frequency analyzer calculated from live acoustic RMS and peak measurements. Uses Monstercat neighbor smoothing and balanced frequency contours so bars move cohesively with the music.</p>
+      <p>Fluid 60 FPS 32–64 bar frequency analyzer calculated from live acoustic RMS and peak measurements. Uses Monstercat neighbor smoothing and balanced frequency contours so bars move cohesively with the music.</p>
     </td>
   </tr>
   <tr>

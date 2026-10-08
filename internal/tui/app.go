@@ -151,7 +151,7 @@ func NewAppModel(p player.AudioPlayer) *AppModel {
 	}
 }
 
-// Init triggers initial commands and starts the 30 FPS tick loop.
+// Init triggers initial commands and starts the 60 FPS tick loop.
 func (m *AppModel) Init() tea.Cmd {
 	cmds := []tea.Cmd{
 		m.tickCmd(),
@@ -191,7 +191,7 @@ func (m *AppModel) Init() tea.Cmd {
 }
 
 func (m *AppModel) tickCmd() tea.Cmd {
-	return tea.Tick(33*time.Millisecond, func(t time.Time) tea.Msg {
+	return tea.Tick(16*time.Millisecond, func(t time.Time) tea.Msg {
 		return TickMsg(t)
 	})
 }
@@ -349,7 +349,7 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.trimCounter++
-		if m.trimCounter >= 150 {
+		if m.trimCounter >= 300 {
 			m.trimCounter = 0
 			mem.PeriodicTrim()
 		}

@@ -109,6 +109,15 @@ import (
 	"vibe-fi/internal/utils/mem"
 )
 
+var (
+	cPropTimePos  = C.CString("time-pos")
+	cPropDuration = C.CString("duration")
+	cPropPause    = C.CString("pause")
+	cPropIdle     = C.CString("idle-active")
+	cPropCache    = C.CString("paused-for-cache")
+	cPropVolume   = C.CString("volume")
+)
+
 // MPVPlayer implements AudioPlayer wrapping libmpv via CGO.
 type MPVPlayer struct {
 	mu            sync.Mutex
@@ -134,6 +143,7 @@ func NewMPVPlayer() (*MPVPlayer, error) {
 	p := &MPVPlayer{mpv: mpv}
 
 	// Audio-only & performance flags
+	p.setOption("config", "no")
 	p.setOption("vo", "null")
 	p.setOption("vd", "null")
 	p.setOption("sub", "no")
@@ -227,9 +237,7 @@ func (p *MPVPlayer) Play() error {
 		return nil
 	}
 	flag := C.int(0)
-	cPause := C.CString("pause")
-	defer C.free(unsafe.Pointer(cPause))
-	ret := C.mpv_set_property(p.mpv, cPause, C.MPV_FORMAT_FLAG, unsafe.Pointer(&flag))
+	ret := C.mpv_set_property(p.mpv, cPropPause, C.MPV_FORMAT_FLAG, unsafe.Pointer(&flag))
 	if ret < 0 {
 		return fmt.Errorf("mpv play error: %s", C.GoString(C.mpv_error_string(ret)))
 	}
@@ -243,9 +251,7 @@ func (p *MPVPlayer) Pause() error {
 		return nil
 	}
 	flag := C.int(1)
-	cPause := C.CString("pause")
-	defer C.free(unsafe.Pointer(cPause))
-	ret := C.mpv_set_property(p.mpv, cPause, C.MPV_FORMAT_FLAG, unsafe.Pointer(&flag))
+	ret := C.mpv_set_property(p.mpv, cPropPause, C.MPV_FORMAT_FLAG, unsafe.Pointer(&flag))
 	if ret < 0 {
 		return fmt.Errorf("mpv pause error: %s", C.GoString(C.mpv_error_string(ret)))
 	}
@@ -258,16 +264,14 @@ func (p *MPVPlayer) TogglePause() error {
 	if p.mpv == nil {
 		return nil
 	}
-	flag := C.int(0)
-	cPause := C.CString("pause")
-	defer C.free(unsafe.Pointer(cPause))
-	if C.mpv_get_property(p.mpv, cPause, C.MPV_FORMAT_FLAG, unsafe.Pointer(&flag)) >= 0 {
+	var flag C.int
+	if C.mpv_get_property(p.mpv, cPropPause, C.MPV_FORMAT_FLAG, unsafe.Pointer(&flag)) >= 0 {
 		if flag == 0 {
 			flag = 1
 		} else {
 			flag = 0
 		}
-		C.mpv_set_property(p.mpv, cPause, C.MPV_FORMAT_FLAG, unsafe.Pointer(&flag))
+		C.mpv_set_property(p.mpv, cPropPause, C.MPV_FORMAT_FLAG, unsafe.Pointer(&flag))
 	}
 	return nil
 }
@@ -311,9 +315,7 @@ func (p *MPVPlayer) IsPlaying() bool {
 		return false
 	}
 	var pos C.double
-	cTimePos := C.CString("time-pos")
-	defer C.free(unsafe.Pointer(cTimePos))
-	if C.mpv_get_property(p.mpv, cTimePos, C.MPV_FORMAT_DOUBLE, unsafe.Pointer(&pos)) < 0 {
+	if C.mpv_get_property(p.mpv, cPropTimePos, C.MPV_FORMAT_DOUBLE, unsafe.Pointer(&pos)) < 0 {
 		return false
 	}
 	return true
@@ -330,9 +332,7 @@ func (p *MPVPlayer) isPausedLocked() bool {
 		return false
 	}
 	var flag C.int
-	cPause := C.CString("pause")
-	defer C.free(unsafe.Pointer(cPause))
-	if C.mpv_get_property(p.mpv, cPause, C.MPV_FORMAT_FLAG, unsafe.Pointer(&flag)) < 0 {
+	if C.mpv_get_property(p.mpv, cPropPause, C.MPV_FORMAT_FLAG, unsafe.Pointer(&flag)) < 0 {
 		return false
 	}
 	return flag != 0
@@ -349,9 +349,7 @@ func (p *MPVPlayer) isIdleLocked() bool {
 		return true
 	}
 	var flag C.int = 1
-	cIdle := C.CString("idle-active")
-	defer C.free(unsafe.Pointer(cIdle))
-	if C.mpv_get_property(p.mpv, cIdle, C.MPV_FORMAT_FLAG, unsafe.Pointer(&flag)) < 0 {
+	if C.mpv_get_property(p.mpv, cPropIdle, C.MPV_FORMAT_FLAG, unsafe.Pointer(&flag)) < 0 {
 		return true
 	}
 	return flag != 0
@@ -368,9 +366,7 @@ func (p *MPVPlayer) IsLoading() bool {
 	}
 	if !p.isIdleLocked() && !p.isPausedLocked() {
 		var pos C.double
-		cTimePos := C.CString("time-pos")
-		defer C.free(unsafe.Pointer(cTimePos))
-		if C.mpv_get_property(p.mpv, cTimePos, C.MPV_FORMAT_DOUBLE, unsafe.Pointer(&pos)) < 0 {
+		if C.mpv_get_property(p.mpv, cPropTimePos, C.MPV_FORMAT_DOUBLE, unsafe.Pointer(&pos)) < 0 {
 			return true
 		}
 	}
@@ -388,9 +384,7 @@ func (p *MPVPlayer) isBufferingLocked() bool {
 		return false
 	}
 	var flag C.int
-	cCache := C.CString("paused-for-cache")
-	defer C.free(unsafe.Pointer(cCache))
-	if C.mpv_get_property(p.mpv, cCache, C.MPV_FORMAT_FLAG, unsafe.Pointer(&flag)) >= 0 && flag != 0 {
+	if C.mpv_get_property(p.mpv, cPropCache, C.MPV_FORMAT_FLAG, unsafe.Pointer(&flag)) >= 0 && flag != 0 {
 		return true
 	}
 	return false
@@ -403,9 +397,7 @@ func (p *MPVPlayer) Position() float64 {
 		return 0
 	}
 	var pos C.double
-	cTimePos := C.CString("time-pos")
-	defer C.free(unsafe.Pointer(cTimePos))
-	if C.mpv_get_property(p.mpv, cTimePos, C.MPV_FORMAT_DOUBLE, unsafe.Pointer(&pos)) < 0 {
+	if C.mpv_get_property(p.mpv, cPropTimePos, C.MPV_FORMAT_DOUBLE, unsafe.Pointer(&pos)) < 0 {
 		return 0
 	}
 	return float64(pos)
@@ -418,9 +410,7 @@ func (p *MPVPlayer) Duration() float64 {
 		return 0
 	}
 	var dur C.double
-	cDuration := C.CString("duration")
-	defer C.free(unsafe.Pointer(cDuration))
-	if C.mpv_get_property(p.mpv, cDuration, C.MPV_FORMAT_DOUBLE, unsafe.Pointer(&dur)) < 0 {
+	if C.mpv_get_property(p.mpv, cPropDuration, C.MPV_FORMAT_DOUBLE, unsafe.Pointer(&dur)) < 0 {
 		return 0
 	}
 	return float64(dur)
@@ -433,9 +423,7 @@ func (p *MPVPlayer) Volume() int {
 		return 100
 	}
 	var vol C.double = 100.0
-	cVolume := C.CString("volume")
-	defer C.free(unsafe.Pointer(cVolume))
-	if C.mpv_get_property(p.mpv, cVolume, C.MPV_FORMAT_DOUBLE, unsafe.Pointer(&vol)) < 0 {
+	if C.mpv_get_property(p.mpv, cPropVolume, C.MPV_FORMAT_DOUBLE, unsafe.Pointer(&vol)) < 0 {
 		return 100
 	}
 	return int(vol)
@@ -454,9 +442,7 @@ func (p *MPVPlayer) SetVolume(volume int) error {
 		volume = 150
 	}
 	vol := C.double(volume)
-	cVolume := C.CString("volume")
-	defer C.free(unsafe.Pointer(cVolume))
-	C.mpv_set_property(p.mpv, cVolume, C.MPV_FORMAT_DOUBLE, unsafe.Pointer(&vol))
+	C.mpv_set_property(p.mpv, cPropVolume, C.MPV_FORMAT_DOUBLE, unsafe.Pointer(&vol))
 	return nil
 }
 
